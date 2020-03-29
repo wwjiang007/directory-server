@@ -26,6 +26,7 @@ import static org.junit.Assert.fail;
 
 import org.apache.directory.api.ldap.model.exception.LdapAuthenticationException;
 import org.apache.directory.api.util.Network;
+import org.apache.directory.junit.tools.MultiThreadedMultiInvoker;
 import org.apache.directory.ldap.client.api.LdapConnection;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.server.annotations.CreateLdapServer;
@@ -36,6 +37,7 @@ import org.apache.directory.server.core.annotations.CreateDS;
 import org.apache.directory.server.core.authn.DelegatingAuthenticator;
 import org.apache.directory.server.core.integ.AbstractLdapTestUnit;
 import org.apache.directory.server.core.integ.FrameworkRunner;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -74,6 +76,11 @@ import org.junit.runner.RunWith;
     allowAnonymousAccess = true)
 public class DelegatedAuthIT extends AbstractLdapTestUnit
 {
+
+    @Rule
+    public MultiThreadedMultiInvoker i = new MultiThreadedMultiInvoker( 1, 1000 );
+
+
     /**
      * Test with bindDn which is not even found under any namingContext of the
      * server.
@@ -106,7 +113,6 @@ public class DelegatedAuthIT extends AbstractLdapTestUnit
         assertEquals( "DelegatedAuthIT-method", getService().getInstanceId() );
         LdapConnection ldapConnection = new LdapNetworkConnection( Network.LOOPBACK_HOSTNAME, 10200 );
 
-        ldapConnection.setTimeOut( 0L );
         ldapConnection.bind( "uid=antoine,ou=users,ou=system", "secret" );
 
         assertTrue( ldapConnection.isAuthenticated() );
@@ -171,7 +177,6 @@ public class DelegatedAuthIT extends AbstractLdapTestUnit
         assertTrue( getService().isStarted() );
         assertEquals( "DelegatedAuthIT-MultipleAuthenticators-method", getService().getInstanceId() );
         LdapConnection ldapConnection = new LdapNetworkConnection( Network.LOOPBACK_HOSTNAME, 10200 );
-        ldapConnection.setTimeOut( 0L );
         ldapConnection.bind( "uid=emmanuel,ou=users,ou=system", "sesame" );
 
         assertTrue( ldapConnection.isAuthenticated() );

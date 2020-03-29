@@ -20,8 +20,6 @@
 package org.apache.directory.server.core.api.event;
 
 
-import java.util.Comparator;
-
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Value;
@@ -39,9 +37,7 @@ import org.apache.directory.api.ldap.model.filter.SimpleNode;
 import org.apache.directory.api.ldap.model.filter.SubstringNode;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
-import org.apache.directory.api.ldap.model.schema.LdapComparator;
 import org.apache.directory.api.ldap.model.schema.MatchingRule;
-import org.apache.directory.api.ldap.model.schema.Normalizer;
 import org.apache.directory.api.util.exception.NotImplementedException;
 import org.apache.directory.server.i18n.I18n;
 
@@ -62,9 +58,6 @@ public class LeafEvaluator implements Evaluator
     /** substring matching type constant */
     private static final int SUBSTRING_MATCH = 3;
 
-    //    /** SchemaManager needed for normalizing and comparing values */
-    //    private SchemaManager schemaManager;
-
     /** Substring node evaluator we depend on */
     private SubstringEvaluator substringEvaluator;
 
@@ -79,7 +72,7 @@ public class LeafEvaluator implements Evaluator
     /**
      * Creates a leaf expression node evaluator.
      *
-     * @param schemaManager The server schemaManager
+     * @param substringEvaluator The evaluator to use
      */
     public LeafEvaluator( SubstringEvaluator substringEvaluator )
     {
@@ -87,19 +80,6 @@ public class LeafEvaluator implements Evaluator
         this.substringEvaluator = substringEvaluator;
     }
 
-
-    //    /**
-    //     * Creates a leaf expression node evaluator.
-    //     *
-    //     * @param schemaManager The server schemaManager
-    //     */
-    //    public LeafEvaluator( SchemaManager schemaManager,
-    //        SubstringEvaluator substringEvaluator )
-    //    {
-    //        this.schemaManager = schemaManager;
-    //        this.scopeEvaluator = new ScopeEvaluator();
-    //        this.substringEvaluator = substringEvaluator;
-    //    }
 
     public ScopeEvaluator getScopeEvaluator()
     {
@@ -165,12 +145,9 @@ public class LeafEvaluator implements Evaluator
      * @return the ava evaluation on the perspective candidate
      * @throws LdapException if there is a database access failure
      */
-    @SuppressWarnings("unchecked")
     private boolean evalGreaterOrLesser( SimpleNode<?> node, Entry entry, boolean isGreaterOrLesser )
         throws LdapException
     {
-        AttributeType attributeType = node.getAttributeType();
-
         // get the attribute associated with the node
         Attribute attr = entry.get( node.getAttribute() );
 
@@ -184,7 +161,6 @@ public class LeafEvaluator implements Evaluator
          * We need to iterate through all values and for each value we normalize
          * and use the comparator to determine if a match exists.
          */
-        Normalizer normalizer = getNormalizer( attributeType );
         Value filterValue = node.getValue();
 
         /*
@@ -227,7 +203,7 @@ public class LeafEvaluator implements Evaluator
      * @param entry the perspective candidate
      * @return the ava evaluation on the perspective candidate
      */
-    private boolean evalPresence( AttributeType attributeType, Entry entry ) throws LdapException
+    private boolean evalPresence( AttributeType attributeType, Entry entry )
     {
         if ( entry == null )
         {
@@ -247,12 +223,8 @@ public class LeafEvaluator implements Evaluator
      * @return the ava evaluation on the perspective candidate
      * @throws org.apache.directory.api.ldap.model.exception.LdapException if there is a database access failure
      */
-    @SuppressWarnings("unchecked")
     private boolean evalEquality( EqualityNode<?> node, Entry entry ) throws LdapException
     {
-        Normalizer normalizer = getNormalizer( node.getAttributeType() );
-        Comparator comparator = getComparator( node.getAttributeType() );
-
         // get the attribute associated with the node
         Attribute attr = entry.get( node.getAttribute() );
 
@@ -263,29 +235,7 @@ public class LeafEvaluator implements Evaluator
         }
 
         // check if Ava value exists in attribute
-        AttributeType attributeType = node.getAttributeType();
-        Value value = null;
-
-        if ( attributeType.getSyntax().isHumanReadable() )
-        {
-            if ( node.getValue().isHumanReadable() )
-            {
-                value = node.getValue();
-            }
-            else
-            {
-                value = new Value( attributeType, node.getValue().getValue() );
-            }
-        }
-        else
-        {
-            value = node.getValue();
-        }
-
-        if ( attr.contains( value ) )
-        {
-            return true;
-        }
+        Value value = node.getValue();
 
         // check if the normalized value is present
         if ( attr.contains( value ) )
@@ -308,36 +258,6 @@ public class LeafEvaluator implements Evaluator
 
         // no match so return false
         return false;
-    }
-
-
-    /**
-     * Gets the comparator for equality matching.
-     *
-     * @param attributeType the attributeType
-     * @return the comparator for equality matching
-     * @throws LdapException if there is a failure
-     */
-    private LdapComparator<? super Object> getComparator( AttributeType attributeType ) throws LdapException
-    {
-        MatchingRule mrule = getMatchingRule( attributeType, EQUALITY_MATCH );
-
-        return mrule.getLdapComparator();
-    }
-
-
-    /**
-     * Gets the normalizer for equality matching.
-     *
-     * @param attributeType the attributeType
-     * @return the normalizer for equality matching
-     * @throws LdapException if there is a failure
-     */
-    private Normalizer getNormalizer( AttributeType attributeType ) throws LdapException
-    {
-        MatchingRule mrule = getMatchingRule( attributeType, EQUALITY_MATCH );
-
-        return mrule.getNormalizer();
     }
 
 

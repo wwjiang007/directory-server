@@ -50,6 +50,7 @@ import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.ObjectClass;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
+import org.apache.directory.api.util.Strings;
 import org.apache.directory.server.config.beans.AdsBaseBean;
 import org.apache.directory.server.config.beans.ConfigBean;
 import org.apache.directory.server.core.api.interceptor.context.SearchOperationContext;
@@ -120,43 +121,33 @@ public class ConfigPartitionReader
      */
     private ObjectClass findObjectClass( Attribute objectClass ) throws Exception
     {
-        Set<ObjectClass> candidates = new HashSet<ObjectClass>();
+        Set<ObjectClass> candidates = new HashSet<>();
 
-        try
+        // Create the set of candidates
+        for ( Value ocValue : objectClass )
         {
-            // Create the set of candidates
-            for ( Value ocValue : objectClass )
+            String ocName = ocValue.getString();
+            String ocOid = schemaManager.getObjectClassRegistry().getOidByName( ocName );
+            ObjectClass oc = schemaManager.getObjectClassRegistry().get( ocOid );
+
+            if ( oc.isStructural() )
             {
-                String ocName = ocValue.getValue();
-                String ocOid = schemaManager.getObjectClassRegistry().getOidByName( ocName );
-                ObjectClass oc = schemaManager.getObjectClassRegistry().get( ocOid );
-
-                if ( oc.isStructural() )
-                {
-                    candidates.add( oc );
-                }
+                candidates.add( oc );
             }
-        }
-        catch ( Exception e )
-        {
-            throw e;
         }
 
         // Now find the parent OC
         for ( Value ocValue : objectClass )
         {
-            String ocName = ocValue.getValue();
+            String ocName = ocValue.getString();
             String ocOid = schemaManager.getObjectClassRegistry().getOidByName( ocName );
             ObjectClass oc = schemaManager.getObjectClassRegistry().get( ocOid );
 
             for ( ObjectClass superior : oc.getSuperiors() )
             {
-                if ( oc.isStructural() )
+                if ( oc.isStructural() && candidates.contains( superior ) )
                 {
-                    if ( candidates.contains( superior ) )
-                    {
-                        candidates.remove( superior );
-                    }
+                    candidates.remove( superior );
                 }
             }
         }
@@ -184,7 +175,6 @@ public class ConfigPartitionReader
 
         // Now, let's instantiate the associated bean. Get rid of the 'ads-' in front of the name,
         // and uppercase the first letter. Finally add "Bean" at the end and add the package.
-        //String beanName = this.getClass().getPackage().getName() + "org.apache.directory.server.config.beans." + Character.toUpperCase( objectClassName.charAt( 4 ) ) + objectClassName.substring( 5 ) + "Bean";
         String beanName = this.getClass().getPackage().getName() + ".beans."
             + Character.toUpperCase( objectClassName.charAt( ADS_PREFIX.length() ) )
             + objectClassName.substring( ADS_PREFIX.length() + 1 ) + ADS_SUFFIX;
@@ -205,7 +195,7 @@ public class ConfigPartitionReader
             LOG.error( message );
             throw new ConfigurationException( message );
         }
-        catch ( SecurityException se )
+        catch ( SecurityException e )
         {
             String message = "Cannot access to the class " + beanName;
             LOG.error( message );
@@ -255,7 +245,7 @@ public class ConfigPartitionReader
         
         if ( value != null )
         {
-            valueStr = value.getValue();
+            valueStr = value.getString();
         }
 
         Class<?> type = beanField.getType();
@@ -269,7 +259,14 @@ public class ConfigPartitionReader
             }
             else if ( type == byte[].class )
             {
-                beanField.set( bean, value.getBytes() );
+                if ( value != null )
+                {
+                    beanField.set( bean, value.getBytes() );
+                }
+                else
+                {
+                    beanField.set( bean, Strings.EMPTY_BYTES );
+                }
             }
             else if ( type == int.class )
             {
@@ -299,13 +296,7 @@ public class ConfigPartitionReader
                 }
             }
         }
-        catch ( IllegalArgumentException iae )
-        {
-            String message = "Cannot store '" + valueStr + "' into attribute " + fieldAttr.getId();
-            LOG.error( message );
-            throw new ConfigurationException( message );
-        }
-        catch ( IllegalAccessException e )
+        catch ( IllegalArgumentException | IllegalAccessException e )
         {
             String message = "Cannot store '" + valueStr + "' into attribute " + fieldAttr.getId();
             LOG.error( message );
@@ -333,7 +324,7 @@ public class ConfigPartitionReader
         // loop on the values and inject them in the bean
         for ( Value value : attribute )
         {
-            String valueStr = value.getValue();
+            String valueStr = value.getString();
 
             try
             {
@@ -368,7 +359,7 @@ public class ConfigPartitionReader
                         throw new ConfigurationException( message );
                     }
                 }
-                else if ( type == Set.class )
+                else if ( ( type == Set.class ) || ( type == List.class ) )
                 {
                     Type genericFieldType = field.getGenericType();
                     Class<?> fieldArgClass = null;
@@ -387,47 +378,16 @@ public class ConfigPartitionReader
                     Method method = bean.getClass().getMethod( addMethodName,
                         Array.newInstance( fieldArgClass, 0 ).getClass() );
 
-                    method.invoke( bean, new Object[]
-                        { new String[]
-                            { valueStr } } );
-                }
-                else if ( type == List.class )
-                {
-                    Type genericFieldType = field.getGenericType();
-                    Class<?> fieldArgClass = null;
-
-                    if ( genericFieldType instanceof ParameterizedType )
-                    {
-                        ParameterizedType parameterizedType = ( ParameterizedType ) genericFieldType;
-                        Type[] fieldArgTypes = parameterizedType.getActualTypeArguments();
-
-                        for ( Type fieldArgType : fieldArgTypes )
-                        {
-                            fieldArgClass = ( Class<?> ) fieldArgType;
-                        }
-                    }
-
-                    Method method = bean.getClass().getMethod( addMethodName,
-                        Array.newInstance( fieldArgClass, 0 ).getClass() );
-
-                    method.invoke( bean, new Object[]
-                        { new String[]
-                            { valueStr } } );
+                    method.invoke( bean, new Object[] { new String[] { valueStr } } );
                 }
             }
-            catch ( IllegalArgumentException iae )
+            catch ( IllegalArgumentException | IllegalAccessException e )
             {
                 String message = "Cannot store '" + valueStr + "' into attribute " + attribute.getId();
                 LOG.error( message );
                 throw new ConfigurationException( message );
             }
-            catch ( IllegalAccessException e )
-            {
-                String message = "Cannot store '" + valueStr + "' into attribute " + attribute.getId();
-                LOG.error( message );
-                throw new ConfigurationException( message );
-            }
-            catch ( SecurityException se )
+            catch ( SecurityException e )
             {
                 String message = "Cannot access to the class " + bean.getClass().getName();
                 LOG.error( message );
@@ -502,7 +462,13 @@ public class ConfigPartitionReader
 
     /**
      * Read some configuration element from the DIT using its name
-     * @throws LdapInvalidAttributeValueException 
+     * 
+     * @param baseDn The base Dn in the DIT where the configuration is stored
+     * @param name The element to read
+     * @param scope The search scope
+     * @param mandatory If the element is mandatory or not
+     * @return The list of beans read
+     * @throws ConfigurationException If the configuration cannot be read 
      */
     public List<AdsBaseBean> read( Dn baseDn, String name, SearchScope scope, boolean mandatory )
         throws ConfigurationException
@@ -615,9 +581,9 @@ public class ConfigPartitionReader
     /**
      * Creates a configuration bean from the given entry.
      * 
-     * @param entry any configuration entry of thetype "ads-base"
-     * @return
-     * @throws Exception
+     * @param entry any configuration entry of the type "ads-base"
+     * @return The ApacheDS base configuration
+     * @throws Exception If the configuration cannot be read
      */
     public AdsBaseBean readConfig( Entry entry ) throws Exception
     {
@@ -687,7 +653,7 @@ public class ConfigPartitionReader
                                 SearchScope.ONELEVEL, !isOptional );
 
                             // Setting the values to the field
-                            if ( ( fieldValues != null ) && ( fieldValues.size() > 0 ) )
+                            if ( ( fieldValues != null ) && !fieldValues.isEmpty() )
                             {
                                 field.set( bean, fieldValues );
                             }
@@ -700,7 +666,7 @@ public class ConfigPartitionReader
                                 SearchScope.ONELEVEL, !isOptional );
 
                             // Setting the value to the field
-                            if ( ( fieldValues != null ) && ( fieldValues.size() > 0 ) )
+                            if ( ( fieldValues != null ) && !fieldValues.isEmpty() )
                             {
                                 field.set( bean, fieldValues.get( 0 ) );
                             }
@@ -750,7 +716,7 @@ public class ConfigPartitionReader
     /**
      * Read the configuration from the DIT, returning a bean containing all of it.
      * 
-     * @param base The base Dn in the DIT where the configuration is stored
+     * @param baseDn The base Dn in the DIT where the configuration is stored
      * @return The Config bean, containing the whole configuration
      * @throws ConfigurationException If we had some issue reading the configuration
      */
@@ -764,7 +730,7 @@ public class ConfigPartitionReader
     /**
      * Read the configuration from the DIT, returning a bean containing all of it.
      * 
-     * @param base The base Dn in the DIT where the configuration is stored
+     * @param baseDn The base Dn in the DIT where the configuration is stored
      * @return The Config bean, containing the whole configuration
      * @throws ConfigurationException If we had some issue reading the configuration
      */
@@ -781,7 +747,7 @@ public class ConfigPartitionReader
      * @param baseDn The base Dn in the DIT where the configuration is stored
      * @param objectClass The element to read from the DIT
      * @return The bean containing the configuration for the required element
-     * @throws ConfigurationException
+     * @throws ConfigurationException If the configuration cannot be read
      */
     public ConfigBean readConfig( String baseDn, String objectClass ) throws LdapException
     {
@@ -795,7 +761,7 @@ public class ConfigPartitionReader
      * @param baseDn The base Dn in the DIT where the configuration is stored
      * @param objectClass The element to read from the DIT
      * @return The bean containing the configuration for the required element
-     * @throws ConfigurationException
+     * @throws ConfigurationException If the configuration cannot be read
      */
     public ConfigBean readConfig( Dn baseDn, String objectClass ) throws ConfigurationException
     {
@@ -811,7 +777,7 @@ public class ConfigPartitionReader
 
         if ( LOG.isDebugEnabled() )
         {
-            if ( ( beans == null ) || ( beans.size() == 0 ) )
+            if ( ( beans == null ) || beans.isEmpty() )
             {
                 LOG.debug( "No {} element to read", objectClass );
             }

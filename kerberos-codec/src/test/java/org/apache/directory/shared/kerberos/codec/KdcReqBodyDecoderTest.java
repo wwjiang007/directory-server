@@ -64,7 +64,6 @@ public class KdcReqBodyDecoderTest
     @Test
     public void testDecodeFullKdcReqBody() throws Exception
     {
-        Asn1Decoder kerberosDecoder = new Asn1Decoder();
 
         ByteBuffer stream = ByteBuffer.allocate( 0x15B );
 
@@ -187,7 +186,7 @@ public class KdcReqBodyDecoderTest
         // Decode the KdcReqBody PDU
         try
         {
-            kerberosDecoder.decode( stream, kdcReqBodyContainer );
+            Asn1Decoder.decode( stream, kdcReqBodyContainer );
         }
         catch ( DecoderException de )
         {
@@ -212,19 +211,22 @@ public class KdcReqBodyDecoderTest
         body.addEType( EncryptionType.AES128_CTS_HMAC_SHA1_96 );
 
         HostAddresses addresses = new HostAddresses();
-        addresses.addHostAddress( new HostAddress( HostAddrType.ADDRTYPE_INET, "192.168.0.1".getBytes() ) );
-        addresses.addHostAddress( new HostAddress( HostAddrType.ADDRTYPE_INET, "192.168.0.2".getBytes() ) );
+        addresses.addHostAddress(
+            new HostAddress( HostAddrType.ADDRTYPE_INET, Strings.getBytesUtf8( "192.168.0.1" ) ) );
+        addresses.addHostAddress(
+            new HostAddress( HostAddrType.ADDRTYPE_INET, Strings.getBytesUtf8( "192.168.0.2" ) ) );
         body.setAddresses( addresses );
 
         EncryptedData encAuthorizationData = new EncryptedData( EncryptionType.AES128_CTS_HMAC_SHA1_96,
-            "abcdef".getBytes() );
+            Strings.getBytesUtf8( "abcdef" ) );
         body.setEncAuthorizationData( encAuthorizationData );
 
         Ticket ticket1 = new Ticket();
         ticket1.setTktVno( 5 );
         ticket1.setRealm( "EXAMPLE.COM" );
         ticket1.setSName( new PrincipalName( "client", PrincipalNameType.KRB_NT_PRINCIPAL ) );
-        ticket1.setEncPart( new EncryptedData( EncryptionType.AES128_CTS_HMAC_SHA1_96, "abcdef".getBytes() ) );
+        ticket1.setEncPart(
+            new EncryptedData( EncryptionType.AES128_CTS_HMAC_SHA1_96, Strings.getBytesUtf8( "abcdef" ) ) );
 
         body.addAdditionalTicket( ticket1 );
 
@@ -232,7 +234,8 @@ public class KdcReqBodyDecoderTest
         ticket2.setTktVno( 5 );
         ticket2.setRealm( "EXAMPLE.COM" );
         ticket2.setSName( new PrincipalName( "server", PrincipalNameType.KRB_NT_PRINCIPAL ) );
-        ticket2.setEncPart( new EncryptedData( EncryptionType.AES128_CTS_HMAC_SHA1_96, "abcdef".getBytes() ) );
+        ticket2.setEncPart(
+            new EncryptedData( EncryptionType.AES128_CTS_HMAC_SHA1_96, Strings.getBytesUtf8( "abcdef" ) ) );
 
         body.addAdditionalTicket( ticket2 );
 
@@ -265,7 +268,6 @@ public class KdcReqBodyDecoderTest
     @Test(expected = DecoderException.class)
     public void testKdcReqBodyEmpty() throws DecoderException
     {
-        Asn1Decoder kerberosDecoder = new Asn1Decoder();
 
         ByteBuffer stream = ByteBuffer.allocate( 0x02 );
 
@@ -278,7 +280,7 @@ public class KdcReqBodyDecoderTest
         Asn1Container kdcReqBodyContainer = new KdcReqBodyContainer( stream );
 
         // Decode the KDC-REQ-BODY PDU
-        kerberosDecoder.decode( stream, kdcReqBodyContainer );
+        Asn1Decoder.decode( stream, kdcReqBodyContainer );
         fail();
     }
 
@@ -289,7 +291,6 @@ public class KdcReqBodyDecoderTest
     @Test(expected = DecoderException.class)
     public void testKdcReqBodyEmptyOptionTag() throws DecoderException
     {
-        Asn1Decoder kerberosDecoder = new Asn1Decoder();
 
         ByteBuffer stream = ByteBuffer.allocate( 0x04 );
 
@@ -305,7 +306,7 @@ public class KdcReqBodyDecoderTest
         Asn1Container kdcReqBodyContainer = new KdcReqBodyContainer( stream );
 
         // Decode the KDC-REQ-BODY PDU
-        kerberosDecoder.decode( stream, kdcReqBodyContainer );
+        Asn1Decoder.decode( stream, kdcReqBodyContainer );
         fail();
     }
 
@@ -316,7 +317,6 @@ public class KdcReqBodyDecoderTest
     @Test(expected = DecoderException.class)
     public void testKdcReqBodyEmptyOptionValue() throws DecoderException
     {
-        Asn1Decoder kerberosDecoder = new Asn1Decoder();
 
         ByteBuffer stream = ByteBuffer.allocate( 0x06 );
 
@@ -333,7 +333,7 @@ public class KdcReqBodyDecoderTest
         Asn1Container kdcReqBodyContainer = new KdcReqBodyContainer( stream );
 
         // Decode the KDC-REQ-BODY PDU
-        kerberosDecoder.decode( stream, kdcReqBodyContainer );
+        Asn1Decoder.decode( stream, kdcReqBodyContainer );
         fail();
     }
 
@@ -344,7 +344,6 @@ public class KdcReqBodyDecoderTest
     @Test(expected = DecoderException.class)
     public void testKdcReqBodyNoOptions() throws DecoderException
     {
-        Asn1Decoder kerberosDecoder = new Asn1Decoder();
 
         ByteBuffer stream = ByteBuffer.allocate( 0x152 );
 
@@ -462,7 +461,7 @@ public class KdcReqBodyDecoderTest
         Asn1Container kdcReqBodyContainer = new KdcReqBodyContainer( stream );
 
         // Decode the KDC-REQ-BODY PDU
-        kerberosDecoder.decode( stream, kdcReqBodyContainer );
+        Asn1Decoder.decode( stream, kdcReqBodyContainer );
         fail();
     }
 
@@ -474,7 +473,6 @@ public class KdcReqBodyDecoderTest
     @Test
     public void testDecodeKdcReqBodyNoOptionalValue() throws Exception
     {
-        Asn1Decoder kerberosDecoder = new Asn1Decoder();
 
         ByteBuffer stream = ByteBuffer.allocate( 0x40 );
 
@@ -509,7 +507,7 @@ public class KdcReqBodyDecoderTest
         // Decode the KdcReqBody PDU
         try
         {
-            kerberosDecoder.decode( stream, kdcReqBodyContainer );
+            Asn1Decoder.decode( stream, kdcReqBodyContainer );
         }
         catch ( DecoderException de )
         {

@@ -19,11 +19,13 @@
  */
 package org.apache.directory.kerberos.credentials.cache;
 
+
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.List;
 
+import org.apache.directory.api.util.Strings;
 import org.apache.directory.shared.kerberos.KerberosTime;
 import org.apache.directory.shared.kerberos.codec.KerberosEncoder;
 import org.apache.directory.shared.kerberos.components.AuthorizationData;
@@ -34,6 +36,7 @@ import org.apache.directory.shared.kerberos.components.HostAddresses;
 import org.apache.directory.shared.kerberos.components.PrincipalName;
 import org.apache.directory.shared.kerberos.messages.Ticket;
 
+
 /**
  * Writing credentials cache according to FCC format by reference the following
  * https://www.gnu.org/software/shishi/manual/html_node/The-Credential-Cache-Binary-File-Format.html
@@ -42,28 +45,29 @@ import org.apache.directory.shared.kerberos.messages.Ticket;
  */
 public class CacheOutputStream extends DataOutputStream
 {
-	
-	public CacheOutputStream( OutputStream out )
-	{
+
+    public CacheOutputStream( OutputStream out )
+    {
         super( out );
     }
 
-    public void write( CredentialsCache credCache ) throws IOException 
-    {   
-    	/**
-    	 * Currently we always write using this version to limit the test effort.
-    	 * This version seems to be the easiest to be compatible with MIT tools.
-    	 * In future we might allow to specify the format version to write if necessary. 
-    	 */
-    	int writeVersion = CredentialsCacheConstants.FCC_FVNO_3;
-    	
+
+    public void write( CredentialsCache credCache ) throws IOException
+    {
+        /**
+         * Currently we always write using this version to limit the test effort.
+         * This version seems to be the easiest to be compatible with MIT tools.
+         * In future we might allow to specify the format version to write if necessary. 
+         */
+        int writeVersion = CredentialsCacheConstants.FCC_FVNO_3;
+
         writeVersion( writeVersion );
-        
+
         if ( writeVersion == CredentialsCacheConstants.FCC_FVNO_4 )
         {
-        	writeTags( credCache.getTags() );
+            writeTags( credCache.getTags() );
         }
-        
+
         writePrincipal( credCache.getPrimaryPrincipalName(), writeVersion );
 
         List<Credentials> credentialsList = credCache.getCredsList();
@@ -76,41 +80,44 @@ public class CacheOutputStream extends DataOutputStream
         }
     }
 
-    private void writeVersion( int version ) throws IOException 
+
+    private void writeVersion( int version ) throws IOException
     {
-        writeShort( version );        
+        writeShort( version );
     }
 
-    private void writeTags( List<Tag> tags ) throws IOException 
+
+    private void writeTags( List<Tag> tags ) throws IOException
     {
-    	int length = 0;
-    	if ( tags != null )
-    	{
-    		for ( Tag tag : tags ) 
-    		{
-    			if ( tag.tag != CredentialsCacheConstants.FCC_TAG_DELTATIME ) 
-    			{
-    				continue;
-    			}
-    			length += tag.length;
-    		}
-    	}
-    	
-    	writeShort( length );
-    	
-    	if ( tags != null )
-    	{
-    		for ( Tag tag : tags ) 
-    		{
-    			if ( tag.tag != CredentialsCacheConstants.FCC_TAG_DELTATIME ) 
-    			{
-    				continue;
-    			}
-    			writeTag( tag );
-    		}
-    	}
+        int length = 0;
+        if ( tags != null )
+        {
+            for ( Tag tag : tags )
+            {
+                if ( tag.tag != CredentialsCacheConstants.FCC_TAG_DELTATIME )
+                {
+                    continue;
+                }
+                length += tag.length;
+            }
+        }
+
+        writeShort( length );
+
+        if ( tags != null )
+        {
+            for ( Tag tag : tags )
+            {
+                if ( tag.tag != CredentialsCacheConstants.FCC_TAG_DELTATIME )
+                {
+                    continue;
+                }
+                writeTag( tag );
+            }
+        }
     }
-    
+
+
     private void writeTag( Tag tag ) throws IOException
     {
         writeShort( tag.tag );
@@ -118,43 +125,45 @@ public class CacheOutputStream extends DataOutputStream
         writeInt( tag.time );
         writeInt( tag.usec );
     }
-    
+
+
     private void writePrincipal( PrincipalName pname, int version ) throws IOException
     {
         int num = pname.getNames().size();
-        
-    	if ( version != CredentialsCacheConstants.FCC_FVNO_1 )
+
+        if ( version != CredentialsCacheConstants.FCC_FVNO_1 )
         {
-        	writeInt( pname.getNameType().getValue() );
+            writeInt( pname.getNameType().getValue() );
         }
-    	else
-    	{
-        	num++;
+        else
+        {
+            num++;
         }
-        
+
         writeInt( num );
-        
-        if ( pname.getRealm() != null) 
+
+        if ( pname.getRealm() != null )
         {
             byte[] realmBytes = null;
-            realmBytes = pname.getRealm().getBytes();
+            realmBytes = Strings.getBytesUtf8( pname.getRealm() );
             writeInt( realmBytes.length );
             write( realmBytes );
         }
         else
         {
-        	writeInt( 0 );
+            writeInt( 0 );
         }
-        
+
         byte[] bytes = null;
         for ( int i = 0; i < pname.getNames().size(); i++ )
         {
-            bytes = pname.getNames().get( i ).getBytes();
+            bytes = Strings.getBytesUtf8( pname.getNames().get( i ) );
             writeInt( bytes.length );
             write( bytes );
         }
     }
-    
+
+
     private void writeCredentials( Credentials creds, int version ) throws IOException
     {
         writePrincipal( creds.getClientName(), version );
@@ -165,86 +174,91 @@ public class CacheOutputStream extends DataOutputStream
         writeKerberosTime( creds.getStartTime() );
         writeKerberosTime( creds.getEndTime() );
         writeKerberosTime( creds.getRenewTill() );
-        
-        writeByte( creds.isEncInSKey() ? 1 : 0);
-        
+
+        writeByte( creds.isEncInSKey() ? 1 : 0 );
+
         writeInt( creds.getFlags().getIntValue() );
-        
+
         writeAddrs( creds.getClientAddresses() );
         writeAuth( creds.getAuthzData() );
-        
+
         writeTicket( creds.getTicket() );
         writeTicket( creds.getSecondTicket() );
     }
 
-    private void writeKerberosTime( KerberosTime ktime) throws IOException
+
+    private void writeKerberosTime( KerberosTime ktime ) throws IOException
     {
-    	int time = 0;
-    	if (ktime != null)
-    	{
-    		time = (int) ( ktime.getTime() / 1000 );
-    	}
-    	writeInt( time );
+        int time = 0;
+        if ( ktime != null )
+        {
+            time = ( int ) ( ktime.getTime() / 1000 );
+        }
+        writeInt( time );
     }
-    
-    private void writeKey( EncryptionKey key, int version ) throws IOException 
+
+
+    private void writeKey( EncryptionKey key, int version ) throws IOException
     {
-    	writeShort( key.getKeyType().getValue());
-    	if ( version == CredentialsCacheConstants.FCC_FVNO_3 )
-    	{
-    		writeShort( key.getKeyType().getValue() );
-    	}
-    	// It's not correct with "uint16_t keylen", instead "uint32_t keylen" in keyblock    	
-    	writeInt( key.getKeyValue().length );
-    	write( key.getKeyValue() );
+        writeShort( key.getKeyType().getValue() );
+        if ( version == CredentialsCacheConstants.FCC_FVNO_3 )
+        {
+            writeShort( key.getKeyType().getValue() );
+        }
+        // It's not correct with "uint16_t keylen", instead "uint32_t keylen" in keyblock    	
+        writeInt( key.getKeyValue().length );
+        write( key.getKeyValue() );
     }
-    
-    private void writeAddrs( HostAddresses addresses ) throws IOException 
+
+
+    private void writeAddrs( HostAddresses addresses ) throws IOException
     {
-    	if (addresses == null)
-    	{
-    		writeInt( 0 );
-    	}
-    	else
-    	{
-    		HostAddress[] addrs = addresses.getAddresses();
-    		write( addrs.length );
-    		for ( int i = 0; i < addrs.length; i++ )
-    		{
-    			write( addrs[i].getAddrType().getValue() );
-    			write( addrs[i].getAddress().length );
-    			write( addrs[i].getAddress(), 0,
-    					addrs[i].getAddress().length );
-    		}
-    	}
-    }
-    
-    private void writeAuth( AuthorizationData authData ) throws IOException 
-    {
-    	if ( authData == null )
-    	{
-    		writeInt( 0 );
-    	}
-    	else
-    	{
-    		for (AuthorizationDataEntry ade : authData.getAuthorizationData())
-    		{
-    			write(ade.getAdType().getValue());
-    			write(ade.getAdData().length);
-    			write(ade.getAdData());
-    		}
-    	}
-    }
-    
-    private void writeTicket( Ticket t ) throws IOException 
-    {
-        if (t == null)
+        if ( addresses == null )
         {
             writeInt( 0 );
         }
         else
         {
-            byte[] bytes = KerberosEncoder.encode(t, false).array();
+            HostAddress[] addrs = addresses.getAddresses();
+            write( addrs.length );
+            for ( int i = 0; i < addrs.length; i++ )
+            {
+                write( addrs[i].getAddrType().getValue() );
+                write( addrs[i].getAddress().length );
+                write( addrs[i].getAddress(), 0,
+                    addrs[i].getAddress().length );
+            }
+        }
+    }
+
+
+    private void writeAuth( AuthorizationData authData ) throws IOException
+    {
+        if ( authData == null )
+        {
+            writeInt( 0 );
+        }
+        else
+        {
+            for ( AuthorizationDataEntry ade : authData.getAuthorizationData() )
+            {
+                write( ade.getAdType().getValue() );
+                write( ade.getAdData().length );
+                write( ade.getAdData() );
+            }
+        }
+    }
+
+
+    private void writeTicket( Ticket t ) throws IOException
+    {
+        if ( t == null )
+        {
+            writeInt( 0 );
+        }
+        else
+        {
+            byte[] bytes = KerberosEncoder.encode( t, false ).array();
             writeInt( bytes.length );
             write( bytes );
         }

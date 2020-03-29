@@ -60,11 +60,11 @@ import org.apache.directory.server.config.ConfigPartitionInitializer;
 import org.apache.directory.server.config.beans.ConfigBean;
 import org.apache.directory.server.config.beans.DirectoryServiceBean;
 import org.apache.directory.server.config.beans.HttpServerBean;
+import org.apache.directory.server.config.beans.JdbmPartitionBean;
 import org.apache.directory.server.config.beans.LdapServerBean;
 import org.apache.directory.server.config.beans.NtpServerBean;
 import org.apache.directory.server.config.builder.ServiceBuilder;
 import org.apache.directory.server.config.listener.ConfigChangeListener;
-import org.apache.directory.server.core.api.CacheService;
 import org.apache.directory.server.core.api.CoreSession;
 import org.apache.directory.server.core.api.DirectoryService;
 import org.apache.directory.server.core.api.DnFactory;
@@ -74,7 +74,9 @@ import org.apache.directory.server.core.api.event.NotificationCriteria;
 import org.apache.directory.server.core.api.interceptor.context.ModifyOperationContext;
 import org.apache.directory.server.core.api.partition.Partition;
 import org.apache.directory.server.core.api.schema.SchemaPartition;
+import org.apache.directory.server.core.partition.impl.btree.AbstractBTreePartition;
 import org.apache.directory.server.core.partition.ldif.LdifPartition;
+import org.apache.directory.server.core.security.CertificateUtil;
 import org.apache.directory.server.core.shared.DefaultDnFactory;
 import org.apache.directory.server.i18n.I18n;
 import org.apache.directory.server.integration.http.HttpServer;
@@ -90,6 +92,7 @@ import org.slf4j.LoggerFactory;
  * 
  * @author <a href="mailto:dev@directory.apache.org">Apache Directory Project</a>
  */
+@SuppressWarnings("restriction")
 public class ApacheDsService
 {
     /** A logger for this class */
@@ -122,9 +125,6 @@ public class ApacheDsService
     /** The configuration partition */
     private LdifPartition configPartition;
 
-    /** The configuration reader instance */
-    private ConfigPartitionReader cpReader;
-
     // variables used during the initial startup to update the mandatory operational
     // attributes
     /** The UUID syntax checker instance */
@@ -135,7 +135,7 @@ public class ApacheDsService
 
     private GeneralizedTimeSyntaxChecker timeChecker = GeneralizedTimeSyntaxChecker.INSTANCE;
 
-    private static final Map<String, AttributeTypeOptions> MANDATORY_ENTRY_ATOP_MAP = new HashMap<String, AttributeTypeOptions>();
+    private static final Map<String, AttributeTypeOptions> MANDATORY_ENTRY_ATOP_MAP = new HashMap<>();
     private static final String[] MANDATORY_ENTRY_ATOP_AT = new String[5];
 
     private boolean isSchemaPartitionFirstExtraction = false;
@@ -177,27 +177,57 @@ public class ApacheDsService
 
         LOG.info( "using partition dir {}", partitionsDir.getAbsolutePath() );
 
-        CacheService cacheService = new CacheService();
-        cacheService.initialize( instanceLayout );
-
         initSchemaManager( instanceLayout );
-        DnFactory dnFactory = new DefaultDnFactory( schemaManager, cacheService.getCache( "dnCache" ) );
-        initSchemaLdifPartition( instanceLayout, dnFactory );
-        initConfigPartition( instanceLayout, dnFactory, cacheService );
+        DnFactory bootstrapDnFactory = new DefaultDnFactory( schemaManager, 100 );
+        initSchemaLdifPartition( instanceLayout, bootstrapDnFactory );
+        initConfigPartition( instanceLayout, bootstrapDnFactory );
 
         // Read the configuration
-        cpReader = new ConfigPartitionReader( configPartition );
+        ConfigPartitionReader cpReader = new ConfigPartitionReader( configPartition );
 
         ConfigBean configBean = cpReader.readConfig();
 
         DirectoryServiceBean directoryServiceBean = configBean.getDirectoryServiceBean();
 
+        /*
+         * Calculate the DN cache size: from all defined partitions get the max cache size setting.
+         * Note: currently only JDBM partition beans have such a setting.
+         */
+        int dnCacheSize = directoryServiceBean.getPartitions().stream()
+            .filter( JdbmPartitionBean.class::isInstance )
+            .map( JdbmPartitionBean.class::cast )
+            .map( JdbmPartitionBean::getPartitionCacheSize )
+            .mapToInt( Integer::intValue )
+            .max().orElse( AbstractBTreePartition.DEFAULT_CACHE_SIZE );
+        DnFactory dnFactory = new DefaultDnFactory( schemaManager, dnCacheSize );
+
         // Initialize the DirectoryService now
-        DirectoryService directoryService = initDirectoryService( instanceLayout, directoryServiceBean, cacheService,
-            dnFactory );
+        DirectoryService directoryService = initDirectoryService( instanceLayout, directoryServiceBean, dnFactory );
 
         // start the LDAP server
-        startLdap( directoryServiceBean.getLdapServerBean(), directoryService, startServers );
+        LdapServerBean ldapServerBean = directoryServiceBean.getLdapServerBean();
+        
+        if ( ldapServerBean.getLdapServerKeystoreFile() == null )
+        {
+            File ldapServerKeystoreFile = instanceLayout.getKeyStoreFile();
+            
+            if ( !ldapServerKeystoreFile.exists() )
+            {
+                ldapServerBean.setLdapServerCertificatePassword( "secret" );
+
+                // We need to create a KeyStore
+                ldapServerKeystoreFile = CertificateUtil.createTempKeyStore( "tempks", "secret".toCharArray() );
+            }
+            
+            ldapServerBean.setLdapServerKeystoreFile( ldapServerKeystoreFile.getAbsolutePath() );
+        }
+        
+        if ( ldapServerBean.getLdapServerCertificatePassword() == null )
+        {
+            ldapServerBean.setLdapServerCertificatePassword( "secret" );
+        }
+        
+        startLdap( ldapServerBean, directoryService, startServers );
 
         // start the NTP server
         startNtp( directoryServiceBean.getNtpServerBean(), directoryService, startServers );
@@ -295,7 +325,7 @@ public class ApacheDsService
 
         List<Throwable> errors = schemaManager.getErrors();
 
-        if ( errors.size() != 0 )
+        if ( !errors.isEmpty() )
         {
             throw new Exception( I18n.err( I18n.ERR_317, Exceptions.printErrors( errors ) ) );
         }
@@ -306,9 +336,8 @@ public class ApacheDsService
      * Initialize the schema partition
      * 
      * @param instanceLayout the instance layout
-     * @throws Exception in case of any problems while initializing the SchemaPartition
      */
-    private void initSchemaLdifPartition( InstanceLayout instanceLayout, DnFactory dnFactory ) throws Exception
+    private void initSchemaLdifPartition( InstanceLayout instanceLayout, DnFactory dnFactory )
     {
         File schemaPartitionDirectory = new File( instanceLayout.getPartitionsDirectory(), "schema" );
 
@@ -326,19 +355,19 @@ public class ApacheDsService
      * @param cacheService the Cache service
      * @throws Exception in case of any issues while extracting the schema
      */
-    private void initConfigPartition( InstanceLayout instanceLayout, DnFactory dnFactory, CacheService cacheService )
+    private void initConfigPartition( InstanceLayout instanceLayout, DnFactory dnFactory )
         throws Exception
     {
         ConfigPartitionInitializer initializer = new ConfigPartitionInitializer( instanceLayout, dnFactory,
-            cacheService, schemaManager );
+            schemaManager );
         configPartition = initializer.initConfigPartition();
     }
 
 
     private DirectoryService initDirectoryService( InstanceLayout instanceLayout,
-        DirectoryServiceBean directoryServiceBean, CacheService cacheService, DnFactory dnFactory ) throws Exception
+        DirectoryServiceBean directoryServiceBean, DnFactory dnFactory ) throws Exception
     {
-        LOG.info( "Initializing the DirectoryService..." );
+         LOG.info( "Initializing the DirectoryService..." );
 
         long startTime = System.currentTimeMillis();
 
@@ -357,8 +386,6 @@ public class ApacheDsService
 
         // Store the default directories
         directoryService.setInstanceLayout( instanceLayout );
-
-        directoryService.setCacheService( cacheService );
 
         directoryService.startup();
 
@@ -406,6 +433,8 @@ public class ApacheDsService
     {
         LOG.info( "Starting the LDAP server" );
         long startTime = System.currentTimeMillis();
+        
+        // Add a reference to the KeyStore file, or create one if missing
 
         ldapServer = ServiceBuilder.createLdapServer( ldapServerBean, directoryService );
 
@@ -423,7 +452,7 @@ public class ApacheDsService
             ldapServer.start();
         }
 
-        LOG.info( "LDAP server: started in {} milliseconds", ( System.currentTimeMillis() - startTime ) + "" );
+        LOG.info( "LDAP server: started in {} milliseconds", ( System.currentTimeMillis() - startTime ) );
     }
 
 
@@ -604,21 +633,26 @@ public class ApacheDsService
 
     public void stop() throws Exception
     {
+        DirectoryService directoryService = null;
+        
         // Stops the server
         if ( ldapServer != null )
         {
             ldapServer.stop();
+            directoryService = ldapServer.getDirectoryService();
         }
 
         if ( kdcServer != null )
         {
             kdcServer.stop();
+            directoryService = kdcServer.getDirectoryService();
         }
 
-        /*if ( changePwdServer != null )
+        /* if ( changePwdServer != null )
         {
             changePwdServer.stop();
-        }*/
+            directoryService = changePwdServer.getDirectoryService();
+        } */
 
         if ( ntpServer != null )
         {
@@ -631,7 +665,10 @@ public class ApacheDsService
         }
 
         // We now have to stop the underlaying DirectoryService
-        ldapServer.getDirectoryService().shutdown();
+        if ( directoryService != null )
+        {
+            directoryService.shutdown();
+        }
     }
 
     private static final String BANNER_LDAP = "           _                     _          ____  ____   \n"
@@ -682,6 +719,8 @@ public class ApacheDsService
 
     /**
      * Print the banner for a server
+     * 
+     * @param bannerConstant The banner to print
      */
     public static void printBanner( String bannerConstant )
     {
@@ -701,7 +740,7 @@ public class ApacheDsService
      * 
      * @param partition instance of the partition Note: should only be those which are loaded before starting the DirectoryService
      * @param dirService the DirectoryService instance
-     * @throws Exception
+     * @throws Exception  If the update failed
      */
     public void updateMandatoryOpAttributes( Partition partition, DirectoryService dirService ) throws Exception
     {
@@ -715,7 +754,7 @@ public class ApacheDsService
             AliasDerefMode.NEVER_DEREF_ALIASES, MANDATORY_ENTRY_ATOP_AT );
         cursor.beforeFirst();
 
-        List<Modification> mods = new ArrayList<Modification>();
+        List<Modification> mods = new ArrayList<>();
 
         while ( cursor.next() )
         {
@@ -764,7 +803,7 @@ public class ApacheDsService
 
             if ( !timeChecker.isValidSyntax( createdTime ) )
             {
-                createdTimeAt = new DefaultAttribute( atType, DateUtils.getGeneralizedTime() );
+                createdTimeAt = new DefaultAttribute( atType, DateUtils.getGeneralizedTime( dirService.getTimeProvider() ) );
             }
 
             Modification createdMod = new DefaultModification( ModificationOperation.REPLACE_ATTRIBUTE, createdTimeAt );

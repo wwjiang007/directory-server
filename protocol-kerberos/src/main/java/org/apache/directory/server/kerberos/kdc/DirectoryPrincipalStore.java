@@ -67,6 +67,7 @@ public class DirectoryPrincipalStore implements PrincipalStore
      * Creates a new instance of DirectoryPrincipalStore.
      *
      * @param directoryService backing store for this PrincipalStore
+     * @param searchBaseDn The Search Base DN
      */
     public DirectoryPrincipalStore( DirectoryService directoryService, Dn searchBaseDn )
     {
@@ -91,7 +92,7 @@ public class DirectoryPrincipalStore implements PrincipalStore
             if ( ebyPrincipalEntry == null )
             {
                 throw new ChangePasswordException( ChangePasswdErrorType.KRB5_KPASSWD_HARDERROR,
-                    ( "No such principal " + byPrincipal ).getBytes() );
+                    Strings.getBytesUtf8( ( "No such principal " + byPrincipal ) ) );
             }
 
             SchemaManager schemaManager = directoryService.getSchemaManager();

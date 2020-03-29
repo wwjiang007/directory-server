@@ -57,17 +57,14 @@ import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
 import org.apache.directory.api.util.Strings;
 import org.apache.directory.api.util.exception.Exceptions;
 import org.apache.directory.server.constants.ApacheSchemaConstants;
-import org.apache.directory.server.core.api.CacheService;
 import org.apache.directory.server.core.api.DnFactory;
 import org.apache.directory.server.core.api.entry.ClonedServerEntry;
 import org.apache.directory.server.core.api.interceptor.context.AddOperationContext;
 import org.apache.directory.server.core.api.interceptor.context.ModDnAva;
-import org.apache.directory.server.core.api.partition.Partition;
 import org.apache.directory.server.core.api.partition.PartitionTxn;
 import org.apache.directory.server.core.partition.impl.avl.AvlPartition;
 import org.apache.directory.server.core.shared.DefaultDnFactory;
 import org.apache.directory.server.xdbm.IndexNotFoundException;
-import org.apache.directory.server.xdbm.MockPartitionReadTxn;
 import org.apache.directory.server.xdbm.StoreUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -103,7 +100,6 @@ public class AvlPartitionTest
     /** The ApacheAlias AttributeType instance */
     private static AttributeType APACHE_ALIAS_AT;
 
-    private static CacheService cacheService;
     private PartitionTxn txn;
 
 
@@ -125,9 +121,7 @@ public class AvlPartitionTest
         LdifSchemaLoader loader = new LdifSchemaLoader( schemaRepository );
 
         schemaManager = new DefaultSchemaManager( loader );
-        cacheService = new CacheService();
-        cacheService.initialize( null );
-        dnFactory = new DefaultDnFactory( schemaManager, cacheService.getCache( "dnCache" ) );
+        dnFactory = new DefaultDnFactory( schemaManager, 100 );
 
         boolean loaded = schemaManager.loadAllEnabled();
 
@@ -159,7 +153,6 @@ public class AvlPartitionTest
         partition.addIndex( new AvlIndex<String>( SchemaConstants.UID_AT_OID ) );
         partition.setSuffixDn( new Dn( schemaManager, "o=Good Times Co." ) );
 
-        partition.setCacheService( cacheService );
         partition.initialize();
 
         StoreUtils.loadExampleData( partition, schemaManager );
@@ -584,14 +577,14 @@ public class AvlPartitionTest
 
         Entry lookedup = partition.fetch( txn, partition.getEntryId( txn, dn ) );
 
-        assertEquals( "WAlkeR", lookedup.get( "sn" ).get().getValue() ); // before replacing
+        assertEquals( "WAlkeR", lookedup.get( "sn" ).get().getString() ); // before replacing
 
         lookedup = partition.modify( txn, dn, add );
-        assertEquals( attribVal, lookedup.get( "sn" ).get().getValue() );
+        assertEquals( attribVal, lookedup.get( "sn" ).get().getString() );
 
         lookedup = partition.modify( txn, dn, new DefaultModification( ModificationOperation.REPLACE_ATTRIBUTE, SN_AT,
             "JWalker" ) );
-        assertEquals( "JWalker", lookedup.get( "sn" ).get().getValue() );
+        assertEquals( "JWalker", lookedup.get( "sn" ).get().getString() );
     }
 
 
@@ -650,6 +643,6 @@ public class AvlPartitionTest
         assertNull( lookedup.get( "ou" ) ); // before replacing
 
         lookedup = partition.modify( txn, dn, add );
-        assertEquals( attribVal, lookedup.get( "ou" ).get().getValue() );
+        assertEquals( attribVal, lookedup.get( "ou" ).get().getString() );
     }
 }

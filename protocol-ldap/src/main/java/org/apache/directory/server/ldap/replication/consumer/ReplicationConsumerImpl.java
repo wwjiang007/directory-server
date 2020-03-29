@@ -26,16 +26,15 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.collections.map.LRUMap;
-import org.apache.directory.api.ldap.codec.controls.manageDsaIT.ManageDsaITDecorator;
+import org.apache.commons.collections4.map.LRUMap;
 import org.apache.directory.api.ldap.extras.controls.SynchronizationModeEnum;
 import org.apache.directory.api.ldap.extras.controls.syncrepl.syncDone.SyncDoneValue;
 import org.apache.directory.api.ldap.extras.controls.syncrepl.syncRequest.SyncRequestValue;
+import org.apache.directory.api.ldap.extras.controls.syncrepl.syncRequest.SyncRequestValueImpl;
 import org.apache.directory.api.ldap.extras.controls.syncrepl.syncState.SyncStateTypeEnum;
 import org.apache.directory.api.ldap.extras.controls.syncrepl.syncState.SyncStateValue;
-import org.apache.directory.api.ldap.extras.controls.syncrepl_impl.SyncRequestValueDecorator;
 import org.apache.directory.api.ldap.extras.intermediate.syncrepl.SyncInfoValue;
-import org.apache.directory.api.ldap.extras.intermediate.syncrepl_impl.SyncInfoValueDecorator;
+import org.apache.directory.api.ldap.extras.intermediate.syncrepl.SyncInfoValueImpl;
 import org.apache.directory.api.ldap.model.constants.Loggers;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.csn.Csn;
@@ -47,7 +46,6 @@ import org.apache.directory.api.ldap.model.entry.DefaultModification;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.entry.Modification;
 import org.apache.directory.api.ldap.model.entry.ModificationOperation;
-import org.apache.directory.api.ldap.model.entry.Value;
 import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.exception.LdapNoSuchObjectException;
 import org.apache.directory.api.ldap.model.filter.AndNode;
@@ -69,7 +67,7 @@ import org.apache.directory.api.ldap.model.message.SearchScope;
 import org.apache.directory.api.ldap.model.message.controls.ManageDsaITImpl;
 import org.apache.directory.api.ldap.model.message.controls.SortKey;
 import org.apache.directory.api.ldap.model.message.controls.SortRequest;
-import org.apache.directory.api.ldap.model.message.controls.SortRequestControlImpl;
+import org.apache.directory.api.ldap.model.message.controls.SortRequestImpl;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
@@ -145,7 +143,9 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
             SchemaConstants.COLLECTIVE_ATTRIBUTE_SUBENTRIES_AT,
             SchemaConstants.CONTEXT_CSN_AT,
             ApacheSchemaConstants.NB_CHILDREN_AT,
-            ApacheSchemaConstants.NB_SUBORDINATES_AT
+            ApacheSchemaConstants.NB_SUBORDINATES_AT,
+            SchemaConstants.HAS_SUBORDINATES_AT,
+            SchemaConstants.STRUCTURAL_OBJECT_CLASS_AT,
     };
 
     /** the cookie that was saved last time */
@@ -170,6 +170,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
     /**
      * @return the config
      */
+    @Override
     public SyncReplConfiguration getConfig()
     {
         return config;
@@ -180,6 +181,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
      * Init the replication service
      * @param directoryservice The directory service
      */
+    @Override
     public void init( DirectoryService directoryservice ) throws Exception
     {
         this.directoryService = directoryservice;
@@ -218,7 +220,6 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
             if ( connection == null )
             {
                 connection = new LdapNetworkConnection( providerHost, port );
-                connection.setTimeOut( -1L );
                 connection.setSchemaManager( schemaManager );
 
                 if ( config.isUseTls() )
@@ -294,8 +295,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
 
         if ( !config.isChaseReferrals() )
         {
-            searchRequest.addControl( new ManageDsaITDecorator( directoryService.getLdapCodecService(),
-                new ManageDsaITImpl() ) );
+            searchRequest.addControl( new ManageDsaITImpl() );
         }
 
         if ( CONSUMER_LOG.isDebugEnabled() )
@@ -315,7 +315,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
         if ( ( ctrl != null ) && ( ctrl.getCookie() != null ) )
         {
             syncCookie = ctrl.getCookie();
-            CONSUMER_LOG.debug( "assigning cookie from sync done value control: " + Strings.utf8ToString( syncCookie ) );
+            CONSUMER_LOG.debug( "assigning cookie from sync done value control: {}", Strings.utf8ToString( syncCookie ) );
             storeCookie();
         }
 
@@ -421,7 +421,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
                         break;
 
                     case MODDN:
-                        String entryUuid = Strings.uuidToString( syncStateCtrl.getEntryUUID() ).toString();
+                        String entryUuid = Strings.uuidToString( syncStateCtrl.getEntryUUID() );
                         applyModDnOperation( remoteEntry, entryUuid, rid );
 
                         break;
@@ -486,8 +486,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
                 return;
             }
 
-            SyncInfoValueDecorator decorator = new SyncInfoValueDecorator( directoryService.getLdapCodecService() );
-            SyncInfoValue syncInfoValue = ( SyncInfoValue ) decorator.decode( syncInfoBytes );
+            SyncInfoValue syncInfoValue = new SyncInfoValueImpl();
 
             byte[] cookie = syncInfoValue.getCookie();
 
@@ -501,15 +500,19 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
 
             if ( cookie != null )
             {
-                CONSUMER_LOG.debug( "setting the cookie from the sync info: " + Strings.utf8ToString( cookie ) );
-                CONSUMER_LOG.debug( "setting the cookie from the sync info: " + Strings.utf8ToString( cookie ) );
+                if ( CONSUMER_LOG.isDebugEnabled() )
+                {
+                    CONSUMER_LOG.debug( "setting the cookie from the sync info: {}", Strings.utf8ToString( cookie ) );
+                    CONSUMER_LOG.debug( "setting the cookie from the sync info: {}", Strings.utf8ToString( cookie ) );
+                }
+
                 syncCookie = cookie;
 
                 String cookieString = Strings.utf8ToString( syncCookie );
                 replicaId = LdapProtocolUtils.getReplicaId( cookieString );
             }
 
-            CONSUMER_LOG.info( "refreshDeletes: " + syncInfoValue.isRefreshDeletes() );
+            CONSUMER_LOG.info( "refreshDeletes: {}", syncInfoValue.isRefreshDeletes() );
 
             List<byte[]> uuidList = syncInfoValue.getSyncUUIDs();
 
@@ -524,7 +527,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
                 deleteEntries( uuidList, true, replicaId );
             }
 
-            CONSUMER_LOG.info( "refreshDone: " + syncInfoValue.isRefreshDone() );
+            CONSUMER_LOG.info( "refreshDone: {}", syncInfoValue.isRefreshDone() );
 
             storeCookie();
         }
@@ -540,6 +543,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
     /**
      * {@inheritDoc}
      */
+    @Override
     public void connectionClosed()
     {
         if ( CONSUMER_LOG.isDebugEnabled() )
@@ -556,6 +560,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
     /**
      * Starts the synchronization operation
      */
+    @Override
     public ReplicationStatusEnum startSync()
     {
         CONSUMER_LOG.debug( "Starting the SyncRepl process for consumer {}", config.getReplicaId() );
@@ -620,6 +625,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
     /**
      * {@inheritDoc}
      */
+    @Override
     public void setConfig( ReplicationConsumerConfig config )
     {
         this.config = ( SyncReplConfiguration ) config;
@@ -629,6 +635,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
     /**
      * {@inheritDoc}
      */
+    @Override
     public boolean connect( boolean now )
     {
         boolean connected = false;
@@ -667,6 +674,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
     /**
      * {@inheritDoc}
      */
+    @Override
     public void ping()
     {
         boolean connected = !disconnected;
@@ -701,6 +709,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
     /**
      * {@inheritDoc}
      */
+    @Override
     public void stop()
     {
         if ( !disconnected )
@@ -713,6 +722,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
     /**
      * {@inheritDoc}
      */
+    @Override
     public String getId()
     {
         return String.valueOf( getConfig().getReplicaId() );
@@ -738,7 +748,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
     {
         CONSUMER_LOG.debug( "Starting synchronization mode {}, reloadHint {}", syncType, reloadHint );
         // Prepare the Syncrepl Request
-        SyncRequestValue syncReq = new SyncRequestValueDecorator( directoryService.getLdapCodecService() );
+        SyncRequestValue syncReq = new SyncRequestValueImpl();
 
         syncReq.setMode( syncType );
         syncReq.setReloadHint( reloadHint );
@@ -933,7 +943,6 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
 
             CONSUMER_LOG.debug( "Storing the cookie in the DIT : {}", config.getConfigEntryDn() );
 
-            //session.modify( config.getConfigEntryDn(), cookieMod, ridMod );
             session.modify( config.getConfigEntryDn(), cookieMod );
             CONSUMER_LOG.debug( "stored the cookie in entry {}", config.getConfigEntryDn() );
 
@@ -1019,103 +1028,96 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
     {
         CONSUMER_LOG.debug( "MODDN for entry {}, new entry : {}", entryUuid, remoteEntry );
 
-        try
+        // Retrieve locally the moved or renamed entry
+        String filter = "(entryUuid=" + entryUuid + ")";
+        SearchRequest searchRequest = new SearchRequestImpl();
+        searchRequest.setBase( new Dn( schemaManager, config.getBaseDn() ) );
+        searchRequest.setFilter( filter );
+        searchRequest.setScope( SearchScope.SUBTREE );
+        searchRequest.addAttributes( SchemaConstants.ENTRY_UUID_AT, SchemaConstants.ENTRY_CSN_AT,
+            SchemaConstants.ALL_USER_ATTRIBUTES );
+
+        Cursor<Entry> cursor = session.search( searchRequest );
+        cursor.beforeFirst();
+
+        Entry localEntry = null;
+
+        if ( cursor.next() )
         {
-            // Retrieve locally the moved or renamed entry
-            String filter = "(entryUuid=" + entryUuid + ")";
-            SearchRequest searchRequest = new SearchRequestImpl();
-            searchRequest.setBase( new Dn( schemaManager, config.getBaseDn() ) );
-            searchRequest.setFilter( filter );
-            searchRequest.setScope( SearchScope.SUBTREE );
-            searchRequest.addAttributes( SchemaConstants.ENTRY_UUID_AT, SchemaConstants.ENTRY_CSN_AT,
-                SchemaConstants.ALL_USER_ATTRIBUTES );
+            localEntry = cursor.get();
+        }
 
-            Cursor<Entry> cursor = session.search( searchRequest );
-            cursor.beforeFirst();
+        cursor.close();
 
-            Entry localEntry = null;
+        // can happen in MMR scenario
+        if ( localEntry == null )
+        {
+            return;
+        }
 
-            if ( cursor.next() )
+        if ( config.isMmrMode() )
+        {
+            Csn localCsn = new Csn( localEntry.get( SchemaConstants.ENTRY_CSN_AT ).getString() );
+            Csn remoteCsn = new Csn( remoteEntry.get( SchemaConstants.ENTRY_CSN_AT ).getString() );
+
+            if ( localCsn.compareTo( remoteCsn ) >= 0 )
             {
-                localEntry = cursor.get();
-            }
-
-            cursor.close();
-
-            // can happen in MMR scenario
-            if ( localEntry == null )
-            {
+                // just discard the received modified entry, that is old
+                CONSUMER_LOG.debug( "local modification is latest, discarding the modDn operation dn {}",
+                    remoteEntry.getDn() );
                 return;
             }
-
-            if ( config.isMmrMode() )
-            {
-                Csn localCsn = new Csn( localEntry.get( SchemaConstants.ENTRY_CSN_AT ).getString() );
-                Csn remoteCsn = new Csn( remoteEntry.get( SchemaConstants.ENTRY_CSN_AT ).getString() );
-
-                if ( localCsn.compareTo( remoteCsn ) >= 0 )
-                {
-                    // just discard the received modified entry, that is old
-                    CONSUMER_LOG.debug( "local modification is latest, discarding the modDn operation dn {}",
-                        remoteEntry.getDn() );
-                    return;
-                }
-            }
-
-            // Compute the DN, parentDn and Rdn for both entries
-            Dn localDn = localEntry.getDn();
-            Dn remoteDn = directoryService.getDnFactory().create( remoteEntry.getDn().getName() );
-
-            Dn localParentDn = localDn.getParent();
-            Dn remoteParentDn = directoryService.getDnFactory().create( remoteDn.getParent().getName() );
-
-            Rdn localRdn = localDn.getRdn();
-            Rdn remoteRdn = directoryService.getDnFactory().create( remoteDn.getRdn().getName() ).getRdn();
-
-            // Check if the OldRdn has been deleted
-            boolean deleteOldRdn = !remoteEntry.contains( localRdn.getNormType(), localRdn.getValue() );
-
-            if ( localRdn.equals( remoteRdn ) )
-            {
-                // If the RDN are equals, it's a MOVE
-                CONSUMER_LOG.debug( "moving {} to the new parent {}", localDn, remoteParentDn );
-                MoveOperationContext movCtx = new MoveOperationContext( session, localDn, remoteParentDn );
-                movCtx.setReplEvent( true );
-                movCtx.setRid( rid );
-                directoryService.getOperationManager().move( movCtx );
-            }
-            else if ( localParentDn.equals( remoteParentDn ) )
-            {
-                // If the parentDn are equals, it's a RENAME
-                CONSUMER_LOG.debug( "renaming the Dn {} with new Rdn {} and deleteOldRdn flag set to {}",
-                    localDn.getName(), remoteRdn.getName(), String.valueOf( deleteOldRdn ) );
-                
-                RenameOperationContext renCtx = new RenameOperationContext( session, localDn, remoteRdn,
-                    deleteOldRdn );
-                renCtx.setReplEvent( true );
-                renCtx.setRid( rid );
-                directoryService.getOperationManager().rename( renCtx );
-            }
-            else
-            {
-                // Otherwise, it's a MOVE and RENAME
-                CONSUMER_LOG.debug(
-                    "moveAndRename on the Dn {} with new newParent Dn {}, new Rdn {} and deleteOldRdn flag set to {}",
-                    localDn.getName(),
-                    remoteParentDn.getName(),
-                    remoteRdn.getName(),
-                    String.valueOf( deleteOldRdn ) );
-                
-                MoveAndRenameOperationContext movRenCtx = new MoveAndRenameOperationContext( session, localDn,
-                    remoteParentDn, remoteRdn, deleteOldRdn );
-                movRenCtx.setReplEvent( true );
-                movRenCtx.setRid( rid );
-                directoryService.getOperationManager().moveAndRename( movRenCtx );
-            }
         }
-        catch ( Exception e )
+
+        // Compute the DN, parentDn and Rdn for both entries
+        Dn localDn = localEntry.getDn();
+        Dn remoteDn = directoryService.getDnFactory().create( remoteEntry.getDn().getName() );
+
+        Dn localParentDn = localDn.getParent();
+        Dn remoteParentDn = directoryService.getDnFactory().create( remoteDn.getParent().getName() );
+
+        Rdn localRdn = localDn.getRdn();
+        Rdn remoteRdn = directoryService.getDnFactory().create( remoteDn.getRdn().getName() ).getRdn();
+
+        // Check if the OldRdn has been deleted
+        boolean deleteOldRdn = !remoteEntry.contains( localRdn.getNormType(), localRdn.getValue() );
+
+        if ( localRdn.equals( remoteRdn ) )
         {
-            throw e;
+            // If the RDN are equals, it's a MOVE
+            CONSUMER_LOG.debug( "moving {} to the new parent {}", localDn, remoteParentDn );
+            MoveOperationContext movCtx = new MoveOperationContext( session, localDn, remoteParentDn );
+            movCtx.setReplEvent( true );
+            movCtx.setRid( rid );
+            directoryService.getOperationManager().move( movCtx );
+        }
+        else if ( localParentDn.equals( remoteParentDn ) )
+        {
+            // If the parentDn are equals, it's a RENAME
+            CONSUMER_LOG.debug( "renaming the Dn {} with new Rdn {} and deleteOldRdn flag set to {}",
+                localDn.getName(), remoteRdn.getName(), String.valueOf( deleteOldRdn ) );
+
+            RenameOperationContext renCtx = new RenameOperationContext( session, localDn, remoteRdn,
+                deleteOldRdn );
+            renCtx.setReplEvent( true );
+            renCtx.setRid( rid );
+            directoryService.getOperationManager().rename( renCtx );
+        }
+        else
+        {
+            // Otherwise, it's a MOVE and RENAME
+            CONSUMER_LOG.debug(
+                "moveAndRename on the Dn {} with new newParent Dn {}, new Rdn {} and deleteOldRdn flag set to {}",
+                localDn.getName(),
+                remoteParentDn.getName(),
+                remoteRdn.getName(),
+                String.valueOf( deleteOldRdn ) );
+
+            MoveAndRenameOperationContext movRenCtx = new MoveAndRenameOperationContext( session, localDn,
+                remoteParentDn, remoteRdn, deleteOldRdn );
+            movRenCtx.setReplEvent( true );
+            movRenCtx.setRid( rid );
+            directoryService.getOperationManager().moveAndRename( movRenCtx );
         }
     }
 
@@ -1130,9 +1132,9 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
         lookupCtx.setSyncreplLookup( true );
 
         Entry localEntry;
-        
+
         Partition partition = session.getDirectoryService().getPartitionNexus().getPartition( remoteEntry.getDn() );
-        
+
         try ( PartitionTxn partitionTxn = partition.beginReadTransaction() )
         {
             lookupCtx.setTransaction( partitionTxn );
@@ -1156,7 +1158,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
         remoteEntry.removeAttributes( MOD_IGNORE_AT );
         localEntry.removeAttributes( MOD_IGNORE_AT );
 
-        List<Modification> mods = new ArrayList<Modification>();
+        List<Modification> mods = new ArrayList<>();
         Iterator<Attribute> itr = localEntry.iterator();
 
         while ( itr.hasNext() )
@@ -1189,7 +1191,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
             }
         }
 
-        List<Modification> serverModifications = new ArrayList<Modification>( mods.size() );
+        List<Modification> serverModifications = new ArrayList<>( mods.size() );
 
         for ( Modification mod : mods )
         {
@@ -1307,7 +1309,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
         {
             String uuid = Strings.uuidToString( limitedUuidList.get( 0 ) );
 
-            filter = new EqualityNode<String>( SchemaConstants.ENTRY_UUID_AT, new Value( uuid ).getValue() );
+            filter = new EqualityNode<String>( SchemaConstants.ENTRY_UUID_AT, uuid );
             if ( isRefreshPresent )
             {
                 filter = new NotNode( filter );
@@ -1327,7 +1329,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
             for ( int i = 0; i < size; i++ )
             {
                 String uuid = Strings.uuidToString( limitedUuidList.get( i ) );
-                ExprNode uuidEqNode = new EqualityNode<String>( SchemaConstants.ENTRY_UUID_AT, new Value( uuid ) .getValue() );
+                ExprNode uuidEqNode = new EqualityNode<String>( SchemaConstants.ENTRY_UUID_AT, uuid );
 
                 if ( isRefreshPresent )
                 {
@@ -1343,7 +1345,10 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
 
         Dn dn = new Dn( schemaManager, config.getBaseDn() );
 
-        CONSUMER_LOG.debug( "selecting entries to be deleted using filter {}", filter.toString() );
+        if ( CONSUMER_LOG.isDebugEnabled() )
+        {
+            CONSUMER_LOG.debug( "selecting entries to be deleted using filter {}", filter );
+        }
 
         SearchRequest req = new SearchRequestImpl();
         req.setBase( dn );
@@ -1353,8 +1358,8 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
         // the ENTRY_DN_AT must be in the attribute list, otherwise sorting fails
         req.addAttributes( SchemaConstants.ENTRY_DN_AT );
 
-        SortKey sk = new SortKey( SchemaConstants.ENTRY_DN_AT, "2.5.13.1" );
-        SortRequest ctrl = new SortRequestControlImpl();
+        SortKey sk = new SortKey( SchemaConstants.ENTRY_DN_AT, SchemaConstants.DISTINGUISHED_NAME_MATCH_MR_OID );
+        SortRequest ctrl = new SortRequestImpl();
         ctrl.addSortKey( sk );
         req.addControl( ctrl );
 
@@ -1371,7 +1376,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
             ctx.setReplEvent( true );
             ctx.setRid( replicaId );
 
-            // DO NOT generate replication event if this is being deleted as part of 
+            // DO NOT generate replication event if this is being deleted as part of
             // e_sync_refresh_required
             if ( reload )
             {
@@ -1402,7 +1407,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
 
     /**
      * removes all child entries present under the given Dn and finally the Dn itself
-     * 
+     *
      * @param rootDn the Dn which will be removed after removing its children
      * @param rid the replica ID
      * @throws Exception If the Dn is not valid or if the deletion failed
@@ -1422,9 +1427,9 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
             // the ENTRY_DN_AT must be in the attribute list, otherwise sorting fails
             req.addAttributes( SchemaConstants.ENTRY_DN_AT );
 
-            SortKey sk = new SortKey( SchemaConstants.ENTRY_DN_AT, "2.5.13.1" );
+            SortKey sk = new SortKey( SchemaConstants.ENTRY_DN_AT, SchemaConstants.DISTINGUISHED_NAME_MATCH_MR_OID );
 
-            SortRequest ctrl = new SortRequestControlImpl();
+            SortRequest ctrl = new SortRequestImpl();
             ctrl.addSortKey( sk );
             req.addControl( ctrl );
 
@@ -1441,7 +1446,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
                 ctx.setReplEvent( true );
                 ctx.setRid( rid );
 
-                // DO NOT generate replication event if this is being deleted as part of 
+                // DO NOT generate replication event if this is being deleted as part of
                 // e_sync_refresh_required
                 if ( reload )
                 {
@@ -1472,6 +1477,7 @@ public class ReplicationConsumerImpl implements ConnectionClosedEventListener, R
     /**
      * @see Object#toString()
      */
+    @Override
     public String toString()
     {
         StringBuilder sb = new StringBuilder();

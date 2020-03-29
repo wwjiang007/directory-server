@@ -23,10 +23,18 @@ package org.apache.directory.server;
 import static org.junit.Assert.fail;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.net.UnknownHostException;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.KeyStore;
+import java.security.cert.X509Certificate;
 import java.util.Calendar;
+import java.util.Locale;
+import java.util.TimeZone;
 
-import org.apache.directory.api.util.FileUtils;
 import org.apache.directory.api.ldap.codec.api.SchemaBinaryAttributeDetector;
 import org.apache.directory.api.ldap.model.cursor.EntryCursor;
 import org.apache.directory.api.ldap.model.entry.DefaultEntry;
@@ -40,9 +48,13 @@ import org.apache.directory.ldap.client.api.LdapConnectionConfig;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.server.constants.ServerDNConstants;
 import org.apache.directory.server.core.api.partition.PartitionNexus;
+import org.apache.directory.server.core.security.CertificateUtil;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import sun.security.x509.X500Name;
+
 import static org.junit.Assert.assertEquals;
 
 
@@ -61,15 +73,18 @@ public class UberJarMainTest
     
     /** The UberjarMain */
     private UberjarMain uberjarMain;
+    
+    private KeyStore keyStore;
 
     @Before
     public void create()
     {
         // Getting tmp directory
         File tmpDirectory = new File( System.getProperty( "java.io.tmpdir" ) );
+        tmpDirectory.deleteOnExit();
 
         // Creating an instance directory
-        Calendar calendar = Calendar.getInstance();
+        Calendar calendar = Calendar.getInstance( TimeZone.getTimeZone( "UTC" ), Locale.ROOT );
         instanceDirectory = new File( tmpDirectory, "ApacheDS-" + calendar.get( Calendar.YEAR )
             + calendar.get( Calendar.MONTH ) + calendar.get( Calendar.DATE ) + calendar.get( Calendar.HOUR )
             + calendar.get( Calendar.MINUTE ) + calendar.get( Calendar.SECOND ) );
@@ -77,6 +92,45 @@ public class UberJarMainTest
 
         // Creating the UberjarMain
         uberjarMain = new UberjarMain();
+        
+        try
+        {
+            // Create a temporary keystore, be sure to remove it when exiting the test
+            File keyStoreFile = File.createTempFile( "testStore", "ks" );
+            keyStoreFile.deleteOnExit();
+
+            
+            keyStore = KeyStore.getInstance( KeyStore.getDefaultType() );
+            char[] keyStorePassword = "secret".toCharArray();
+            
+            try ( InputStream keyStoreData = new FileInputStream( keyStoreFile ) )
+            {
+                keyStore.load( null, keyStorePassword );
+            }
+
+            // Generate the asymmetric keys, using EC algorithm
+            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance( "EC" );
+            KeyPair keyPair = keyPairGenerator.generateKeyPair();
+            
+            // Generate the subject's name
+            @SuppressWarnings("restriction")
+            X500Name owner = new X500Name( "apacheds", "directory", "apache", "US" );
+
+            // Create the self-signed certificate
+            X509Certificate certificate = CertificateUtil.generateSelfSignedCertificate( owner, keyPair, 365, "SHA256WithECDSA" );
+            
+            keyStore.setKeyEntry( "apachedsKey", keyPair.getPrivate(), keyStorePassword, new X509Certificate[] { certificate } );
+            
+            try ( FileOutputStream out = new FileOutputStream( keyStoreFile ) )
+            {
+                keyStore.store( out, keyStorePassword );
+            }
+        }
+        catch ( Exception e )
+        {
+            
+        }
+
     }
 
     
@@ -86,11 +140,6 @@ public class UberJarMainTest
         if ( uberjarMain != null )
         {
             uberjarMain.stop();
-        }
-
-        if ( instanceDirectory != null )
-        {
-            FileUtils.deleteDirectory( instanceDirectory );
         }
     }
     
@@ -104,6 +153,7 @@ public class UberJarMainTest
         configuration.setCredentials( PartitionNexus.ADMIN_PASSWORD_STRING );
         configuration.setBinaryAttributeDetector( new SchemaBinaryAttributeDetector( null ) );
         LdapConnection connection = new LdapNetworkConnection( configuration );
+        connection.connect();
         connection.loadSchema();
 
         // Binding on the connection

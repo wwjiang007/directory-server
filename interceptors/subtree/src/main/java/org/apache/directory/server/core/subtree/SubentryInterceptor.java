@@ -27,7 +27,6 @@ import java.util.Set;
 
 import javax.naming.directory.SearchControls;
 
-import org.apache.directory.api.ldap.codec.controls.search.subentries.SubentriesDecorator;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.entry.Attribute;
 import org.apache.directory.api.ldap.model.entry.DefaultAttribute;
@@ -255,7 +254,7 @@ public class SubentryInterceptor extends BaseInterceptor
                     }
                     catch ( Exception e )
                     {
-                        LOG.warn( "Failed while parsing subtreeSpecification for " + subentryDn );
+                        LOG.warn( "Failed while parsing subtreeSpecification for {}", subentryDn );
                         continue;
                     }
 
@@ -333,9 +332,8 @@ public class SubentryInterceptor extends BaseInterceptor
      *
      * @param opContext the invocation object to use for determining subentry visibility
      * @return true if subentries should be visible, false otherwise
-     * @throws Exception if there are problems accessing request controls
      */
-    private boolean isSubentryVisible( OperationContext opContext ) throws LdapException
+    private boolean isSubentryVisible( OperationContext opContext )
     {
         if ( !opContext.hasRequestControls() )
         {
@@ -345,9 +343,8 @@ public class SubentryInterceptor extends BaseInterceptor
         // found the subentry request control so we return its value
         if ( opContext.hasRequestControl( SUBENTRY_CONTROL ) )
         {
-            SubentriesDecorator subentriesDecorator = ( SubentriesDecorator ) opContext
-                .getRequestControl( SUBENTRY_CONTROL );
-            return subentriesDecorator.getDecorated().isVisible();
+            Subentries subentries = ( Subentries ) opContext.getRequestControl( SUBENTRY_CONTROL );
+            return subentries.isVisible();
         }
 
         return false;
@@ -634,7 +631,7 @@ public class SubentryInterceptor extends BaseInterceptor
                     case ADD_ATTRIBUTE:
                         for ( Value value : mod.getAttribute() )
                         {
-                            ocFinalState.add( value.getValue() );
+                            ocFinalState.add( value.getString() );
                         }
 
                         break;
@@ -642,7 +639,7 @@ public class SubentryInterceptor extends BaseInterceptor
                     case REMOVE_ATTRIBUTE:
                         for ( Value value : mod.getAttribute() )
                         {
-                            ocFinalState.remove( value.getValue() );
+                            ocFinalState.remove( value.getString() );
                         }
 
                         break;
@@ -697,7 +694,7 @@ public class SubentryInterceptor extends BaseInterceptor
      * associated with the administrative roles.
      */
     private List<Modification> getOperationalModsForReplace( Dn oldDn, Dn newDn, Subentry subentry, Entry entry )
-        throws Exception
+        throws LdapException
     {
         List<Modification> modifications = new ArrayList<>();
 
@@ -1290,7 +1287,6 @@ public class SubentryInterceptor extends BaseInterceptor
      * <u>Case 3 :</u><br>
      *
      *
-     * @param next The next interceptor in the chain
      * @param moveContext The context containing all the needed informations to proceed
      * @throws LdapException If the move failed
      */

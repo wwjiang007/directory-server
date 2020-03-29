@@ -32,7 +32,7 @@
 
   <properties>
     <apache.directory.version>${project.version}</apache.directory.version>
-    <commons-collections.version>3.2.1</commons-collections.version>
+    <commons-collections.version>4.2</commons-collections.version>
   </properties>
   
   <dependencies>
@@ -80,7 +80,7 @@
     <repository>
       <id>spring-milestone</id>
       <name>Spring Portfolio Milestone Repository</name>
-      <url>http://s3.amazonaws.com/maven.springframework.org/milestone</url>
+      <url>https://s3.amazonaws.com/maven.springframework.org/milestone</url>
       <releases>
         <enabled>true</enabled>
       </releases>

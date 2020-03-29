@@ -45,8 +45,7 @@ import org.apache.directory.api.ldap.model.filter.GreaterEqNode;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.AttributeType;
 import org.apache.directory.api.ldap.model.schema.LdapSyntax;
-import org.apache.directory.api.ldap.model.schema.MutableAttributeType;
-import org.apache.directory.api.ldap.model.schema.MutableMatchingRule;
+import org.apache.directory.api.ldap.model.schema.MatchingRule;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.schema.comparators.StringComparator;
 import org.apache.directory.api.ldap.model.schema.normalizers.DeepTrimToLowerNormalizer;
@@ -57,7 +56,6 @@ import org.apache.directory.api.ldap.schema.loader.LdifSchemaLoader;
 import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
 import org.apache.directory.api.util.Strings;
 import org.apache.directory.api.util.exception.Exceptions;
-import org.apache.directory.server.core.api.CacheService;
 import org.apache.directory.server.core.api.DnFactory;
 import org.apache.directory.server.core.api.interceptor.context.AddOperationContext;
 import org.apache.directory.server.core.api.partition.Partition;
@@ -91,7 +89,6 @@ public class GreaterEqNotIndexedTest
     Store store;
     static SchemaManager schemaManager = null;
     private static DnFactory dnFactory;
-    private static CacheService cacheService;
 
 
     @BeforeClass
@@ -127,9 +124,7 @@ public class GreaterEqNotIndexedTest
             fail( "Schema load failed : " + Exceptions.printErrors( schemaManager.getErrors() ) );
         }
 
-        cacheService = new CacheService();
-        cacheService.initialize( null );
-        dnFactory = new DefaultDnFactory( schemaManager, cacheService.getCache( "dnCache" ) );
+        dnFactory = new DefaultDnFactory( schemaManager, 100 );
     }
 
 
@@ -154,7 +149,6 @@ public class GreaterEqNotIndexedTest
         store.addIndex( new AvlIndex<String>( SchemaConstants.OU_AT_OID ) );
         store.addIndex( new AvlIndex<String>( SchemaConstants.CN_AT_OID ) );
         ( ( Partition ) store ).setSuffixDn( new Dn( schemaManager, "o=Good Times Co." ) );
-        ( ( Partition ) store ).setCacheService( cacheService );
         ( ( Partition ) store ).initialize();
 
         StoreUtils.loadExampleData( store, schemaManager );
@@ -443,7 +437,7 @@ public class GreaterEqNotIndexedTest
     public void testEvaluatorAttributeNoMatchingRule() throws Exception
     {
         LdapSyntax syntax = new BogusSyntax( 1 );
-        MutableAttributeType at = new MutableAttributeType( SchemaConstants.ATTRIBUTE_TYPES_AT_OID + ".2000" );
+        AttributeType at = new AttributeType( SchemaConstants.ATTRIBUTE_TYPES_AT_OID + ".2000" );
         at.addName( "bogus" );
         at.setSchemaName( "other" );
         at.setSyntax( syntax );
@@ -468,12 +462,12 @@ public class GreaterEqNotIndexedTest
     public void testEvaluatorAttributeOrderingMatchingRule() throws Exception
     {
         LdapSyntax syntax = new BogusSyntax( 1 );
-        MutableMatchingRule mr = new MutableMatchingRule( "1.1" );
+        MatchingRule mr = new MatchingRule( "1.1" );
         mr.setSyntax( syntax );
         mr.setLdapComparator( new StringComparator( "1.1" ) );
         mr.setNormalizer( new DeepTrimToLowerNormalizer() );
 
-        MutableAttributeType at = new MutableAttributeType( SchemaConstants.ATTRIBUTE_TYPES_AT_OID + ".5000" );
+        AttributeType at = new AttributeType( SchemaConstants.ATTRIBUTE_TYPES_AT_OID + ".5000" );
         at.addName( "bogus" );
         at.setSchemaName( "other" );
         at.setSyntax( syntax );

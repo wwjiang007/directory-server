@@ -42,7 +42,6 @@ import org.apache.directory.server.core.api.partition.PartitionTxn;
 import org.apache.directory.server.core.partition.impl.btree.IndexCursorAdaptor;
 import org.apache.directory.server.i18n.I18n;
 import org.apache.directory.server.xdbm.AbstractIndex;
-import org.apache.directory.server.xdbm.EmptyIndexCursor;
 import org.apache.directory.server.xdbm.IndexEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -118,6 +117,9 @@ public class JdbmIndex<K> extends AbstractIndex<K, String>
     // ----------------------------------------------------------------------
     /**
      * Creates a JdbmIndex instance for a give AttributeId
+     * 
+     * @param attributeId The Attribute ID
+     * @param withReverse If we have to create a reverse index
      */
     public JdbmIndex( String attributeId, boolean withReverse )
     {
@@ -130,11 +132,14 @@ public class JdbmIndex<K> extends AbstractIndex<K, String>
     /**
      * Initialize the index for an Attribute, with a specific working directory (may be null).
      * 
+     * @param recMan The RecordManager
      * @param schemaManager The schemaManager to use to get back the Attribute
      * @param attributeType The attributeType this index is created for
+     * @throws LdapException If the initialization failed
      * @throws IOException If the initialization failed
      */
-    public void init( RecordManager recMan, SchemaManager schemaManager, AttributeType attributeType ) throws LdapException, IOException
+    public void init( RecordManager recMan, SchemaManager schemaManager, AttributeType attributeType ) 
+            throws LdapException, IOException
     {
         LOG.debug( "Initializing an Index for attribute '{}'", attributeType.getName() );
 
@@ -320,7 +325,7 @@ public class JdbmIndex<K> extends AbstractIndex<K, String>
 
 
     /**
-     * @see org.apache.directory.server.xdbm.Index#lessThanCount(java.lang.Object)
+     * {@inheritDoc}
      */
     @Override
     public long lessThanCount( PartitionTxn partitionTxn, K attrVal ) throws LdapException
@@ -334,7 +339,7 @@ public class JdbmIndex<K> extends AbstractIndex<K, String>
     // ------------------------------------------------------------------------
 
     /**
-     * @see Index#forwardLookup(java.lang.Object)
+     * {@inheritDoc}
      */
     public String forwardLookup( PartitionTxn partitionTxn, K attrVal ) throws LdapException
     {
@@ -439,44 +444,10 @@ public class JdbmIndex<K> extends AbstractIndex<K, String>
     // ------------------------------------------------------------------------
     // Index Cursor Operations
     // ------------------------------------------------------------------------
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Cursor<IndexEntry<K, String>> reverseCursor( PartitionTxn partitionTxn )
-    {
-        if ( withReverse )
-        {
-            return new IndexCursorAdaptor<>( partitionTxn, ( Cursor ) reverse.cursor(), false );
-        }
-        else
-        {
-            return new EmptyIndexCursor<>( partitionTxn );
-        }
-    }
-
-
     @SuppressWarnings("unchecked")
     public Cursor<IndexEntry<K, String>> forwardCursor( PartitionTxn partitionTxn ) throws LdapException
     {
         return new IndexCursorAdaptor<>( partitionTxn, ( Cursor ) forward.cursor(), true );
-    }
-
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Cursor<IndexEntry<K, String>> reverseCursor( PartitionTxn partitionTxn, String id ) throws LdapException
-    {
-        if ( withReverse )
-        {
-            return new IndexCursorAdaptor<>( partitionTxn, ( Cursor ) reverse.cursor( partitionTxn, id ), false );
-        }
-        else
-        {
-            return new EmptyIndexCursor<>( partitionTxn );
-        }
     }
 
 

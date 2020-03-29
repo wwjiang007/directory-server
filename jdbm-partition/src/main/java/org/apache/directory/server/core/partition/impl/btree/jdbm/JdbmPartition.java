@@ -29,14 +29,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
-import jdbm.RecordManager;
-import jdbm.helper.MRU;
-import jdbm.recman.BaseRecordManager;
-import jdbm.recman.CacheRecordManager;
-import jdbm.recman.TransactionManager;
-import net.sf.ehcache.Cache;
-import net.sf.ehcache.Element;
-
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.csn.CsnFactory;
 import org.apache.directory.api.ldap.model.cursor.Cursor;
@@ -81,6 +73,15 @@ import org.apache.directory.server.xdbm.search.impl.NoOpOptimizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+
+import jdbm.RecordManager;
+import jdbm.helper.MRU;
+import jdbm.recman.BaseRecordManager;
+import jdbm.recman.CacheRecordManager;
+import jdbm.recman.TransactionManager;
+
 
 /**
  * A {@link Partition} that stores entries in
@@ -109,11 +110,14 @@ public class JdbmPartition extends AbstractBTreePartition
     private RecordManager recMan;
 
     /** the entry cache */
-    private Cache entryCache;
+    private Cache< String, Entry > entryCache;
 
 
     /**
      * Creates a store based on JDBM B+Trees.
+     * 
+     * @param schemaManager The SchemaManager instance
+     * @param dnFactory The DN factory instance
      */
     public JdbmPartition( SchemaManager schemaManager, DnFactory dnFactory )
     {
@@ -192,7 +196,7 @@ public class JdbmPartition extends AbstractBTreePartition
 
                 for ( Value value : objectClass )
                 {
-                    String valueStr = value.getValue();
+                    String valueStr = value.getString();
 
                     if ( valueStr.equals( SchemaConstants.TOP_OC ) )
                     {
@@ -230,7 +234,7 @@ public class JdbmPartition extends AbstractBTreePartition
 
                     for ( Value value : adminRoles )
                     {
-                        adminRoleIdx.add( partitionTxn, value.getValue(), id );
+                        adminRoleIdx.add( partitionTxn, value.getString(), id );
                     }
 
                     // Adds only those attributes that are indexed
@@ -253,7 +257,7 @@ public class JdbmPartition extends AbstractBTreePartition
 
                         for ( Value value : attribute )
                         {
-                            idx.add( partitionTxn, value.getValue(), id );
+                            idx.add( partitionTxn, value.getString(), id );
                         }
 
                         // Adds only those attributes that are indexed
@@ -531,19 +535,7 @@ public class JdbmPartition extends AbstractBTreePartition
                 buildUserIndex( beginReadTransaction(), indexToBuild );
             }
 
-            //deleteUnusedIndexFiles( allIndices, allIndexDbFiles );
-
-            if ( cacheService != null )
-            {
-                entryCache = cacheService.getCache( getId() );
-
-                int cacheSizeConfig = ( int ) entryCache.getCacheConfiguration().getMaxEntriesLocalHeap();
-
-                if ( cacheSizeConfig < cacheSize )
-                {
-                    entryCache.getCacheConfiguration().setMaxEntriesLocalHeap( cacheSize );
-                }
-            }
+            entryCache = Caffeine.newBuilder().maximumSize( cacheSize ).build();
 
             // Initialization of the context entry
             if ( ( suffixDn != null ) && ( contextEntry != null ) )
@@ -671,7 +663,7 @@ public class JdbmPartition extends AbstractBTreePartition
      * This method is called when the synch thread is waking up, to write
      * the modified data.
      * 
-     * @throws Exception on failures to sync database files to disk
+     * @throws LdapException on failures to sync database files to disk
      */
     @Override
     public synchronized void sync() throws LdapException
@@ -751,7 +743,7 @@ public class JdbmPartition extends AbstractBTreePartition
                     {
                         for ( Value value : entryAttr )
                         {
-                            index.add( partitionTxn, value.getValue(), id );
+                            index.add( partitionTxn, value.getString(), id );
                         }
     
                         // Adds only those attributes that are indexed
@@ -884,7 +876,7 @@ public class JdbmPartition extends AbstractBTreePartition
         {
             if ( entryCache != null )
             {
-                entryCache.removeAll();
+                entryCache.invalidateAll();
             }
         }
 
@@ -951,20 +943,20 @@ public class JdbmPartition extends AbstractBTreePartition
                     entry = ( ( ClonedServerEntry ) entry ).getOriginalEntry();
                 }
 
-                entryCache.replace( new Element( id, entry ) );
+                entryCache.put( id, entry );
             }
             else if ( ( opCtx instanceof MoveOperationContext )
                 || ( opCtx instanceof MoveAndRenameOperationContext )
                 || ( opCtx instanceof RenameOperationContext ) )
             {
                 // clear the cache it is not worth updating all the children
-                entryCache.removeAll();
+                entryCache.invalidateAll();
             }
             else if ( opCtx instanceof DeleteOperationContext )
             {
                 // delete the entry
                 DeleteOperationContext delCtx = ( DeleteOperationContext ) opCtx;
-                entryCache.remove( delCtx.getEntry().get( SchemaConstants.ENTRY_UUID_AT ).getString() );
+                entryCache.invalidate( delCtx.getEntry().get( SchemaConstants.ENTRY_UUID_AT ).getString() );
             }
         }
         catch ( LdapException e )
@@ -977,19 +969,7 @@ public class JdbmPartition extends AbstractBTreePartition
     @Override
     public Entry lookupCache( String id )
     {
-        if ( entryCache == null )
-        {
-            return null;
-        }
-
-        Element el = entryCache.get( id );
-
-        if ( el != null )
-        {
-            return ( Entry ) el.getObjectValue();
-        }
-
-        return null;
+        return ( entryCache != null ) ? entryCache.getIfPresent( id ) : null;
     }
 
 
@@ -1008,7 +988,7 @@ public class JdbmPartition extends AbstractBTreePartition
             addedEntry = ( ( ClonedServerEntry ) entry ).getOriginalEntry();
         }
 
-        entryCache.put( new Element( id, addedEntry ) );
+        entryCache.put( id, addedEntry );
     }
 
 

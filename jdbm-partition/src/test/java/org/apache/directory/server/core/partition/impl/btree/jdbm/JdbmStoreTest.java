@@ -60,7 +60,6 @@ import org.apache.directory.api.ldap.schema.manager.impl.DefaultSchemaManager;
 import org.apache.directory.api.util.Strings;
 import org.apache.directory.api.util.exception.Exceptions;
 import org.apache.directory.server.constants.ApacheSchemaConstants;
-import org.apache.directory.server.core.api.CacheService;
 import org.apache.directory.server.core.api.CoreSession;
 import org.apache.directory.server.core.api.DirectoryService;
 import org.apache.directory.server.core.api.DnFactory;
@@ -117,7 +116,6 @@ public class JdbmStoreTest
     /** The SN AttributeType instance */
     private static AttributeType SN_AT;
 
-    private static CacheService cacheService;
     private PartitionTxn partitionTxn;
     
     /** The recordManager used */
@@ -152,9 +150,7 @@ public class JdbmStoreTest
         SN_AT = schemaManager.getAttributeType( SchemaConstants.SN_AT );
         APACHE_ALIAS_AT = schemaManager.getAttributeType( ApacheSchemaConstants.APACHE_ALIAS_AT );
 
-        cacheService = new CacheService();
-        cacheService.initialize( null );
-        dnFactory = new DefaultDnFactory( schemaManager, cacheService.getCache( "dnCache" ) );
+        dnFactory = new DefaultDnFactory( schemaManager, 100 );
     }
 
 
@@ -182,7 +178,6 @@ public class JdbmStoreTest
         Dn suffixDn = new Dn( schemaManager, "o=Good Times Co." );
         partition.setSuffixDn( suffixDn );
 
-        partition.setCacheService( cacheService );
         partition.initialize();
 
         StoreUtils.loadExampleData( partition, schemaManager );
@@ -247,7 +242,6 @@ public class JdbmStoreTest
         store2.addIndex( new JdbmIndex( SchemaConstants.OU_AT_OID, false ) );
         store2.addIndex( new JdbmIndex( SchemaConstants.UID_AT_OID, false ) );
         store2.setSuffixDn( EXAMPLE_COM );
-        store2.setCacheService( cacheService );
         store2.initialize();
 
         // inject context entry
@@ -836,16 +830,16 @@ public class JdbmStoreTest
 
         Entry lookedup = partition.fetch( partitionTxn, partition.getEntryId( partitionTxn, dn ), dn );
 
-        assertEquals( "WAlkeR", lookedup.get( "sn" ).get().getValue() ); // before replacing
+        assertEquals( "WAlkeR", lookedup.get( "sn" ).get().getString() ); // before replacing
 
         lookedup = partition.modify( partitionTxn, dn, add );
-        assertEquals( attribVal, lookedup.get( "sn" ).get().getValue() );
+        assertEquals( attribVal, lookedup.get( "sn" ).get().getString() );
 
         // testing the store.modify( dn, mod, entry ) API
         Modification replace = new DefaultModification( ModificationOperation.REPLACE_ATTRIBUTE, SN_AT, "JWalker" );
 
         lookedup = partition.modify( partitionTxn, dn, replace );
-        assertEquals( "JWalker", lookedup.get( "sn" ).get().getValue() );
+        assertEquals( "JWalker", lookedup.get( "sn" ).get().getString() );
         assertEquals( 1, lookedup.get( "sn" ).size() );
     }
 
@@ -918,6 +912,6 @@ public class JdbmStoreTest
         assertNull( lookedup.get( "ou" ) ); // before replacing
 
         lookedup = partition.modify( partitionTxn, dn, add );
-        assertEquals( attribVal, lookedup.get( "ou" ).get().getValue() );
+        assertEquals( attribVal, lookedup.get( "ou" ).get().getString() );
     }
 }

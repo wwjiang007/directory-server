@@ -78,6 +78,7 @@ public class DelegatingAuthenticator extends AbstractAuthenticator
     /**
      * Creates a new instance.
      * @see AbstractAuthenticator
+     * @param baseDn The base Dn
      */
     public DelegatingAuthenticator( Dn baseDn )
     {
@@ -89,6 +90,7 @@ public class DelegatingAuthenticator extends AbstractAuthenticator
      * Creates a new instance, for a specific authentication level.
      * @see AbstractAuthenticator
      * @param type The relevant AuthenticationLevel
+     * @param baseDn The base Dn
      */
     protected DelegatingAuthenticator( AuthenticationLevel type, Dn baseDn )
     {
@@ -218,7 +220,7 @@ public class DelegatingAuthenticator extends AbstractAuthenticator
      */
     @Override
     public LdapPrincipal authenticate( BindOperationContext bindContext )
-        throws Exception
+        throws LdapException
     {
         LdapPrincipal principal = null;
 
@@ -281,15 +283,22 @@ public class DelegatingAuthenticator extends AbstractAuthenticator
             try
             {
                 ldapConnection.bind( bindDn, Strings.utf8ToString( bindContext.getCredentials() ) );
-
-                // no need to remain bound to delegate host
-                ldapConnection.unBind();
             }
             catch ( LdapException le )
             {
                 String message = I18n.err( I18n.ERR_230, bindDn.getName() );
                 LOG.info( message );
                 throw new LdapAuthenticationException( message );
+            }
+            finally
+            {
+                // no need to remain bound to delegate host
+                ldapConnection.unBind();
+
+                if ( IS_DEBUG )
+                {
+                    LOG.debug( "Authenticated successfully {}", bindContext.getDn() );
+                }
             }
 
             // Create the new principal
@@ -308,7 +317,6 @@ public class DelegatingAuthenticator extends AbstractAuthenticator
             }
 
             return principal;
-
         }
         catch ( LdapException e )
         {

@@ -73,7 +73,7 @@ public class ReferralManagerImpl implements ReferralManager
      * Creates a new instance of ReferralManagerImpl.
      *
      * @param directoryService The directory service
-     * @throws Exception If we can't initialize the manager
+     * @throws LdapException If we can't initialize the manager
      */
     public ReferralManagerImpl( DirectoryService directoryService ) throws LdapException
     {
@@ -143,8 +143,6 @@ public class ReferralManagerImpl implements ReferralManager
     /**
      * {@inheritDoc}
      */
-    // This will suppress PMD.EmptyCatchBlock warnings in this method
-    @SuppressWarnings("PMD.EmptyCatchBlock")
     @Override
     public void addReferral( Entry entry )
     {

@@ -28,14 +28,20 @@ import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.directory.api.util.FileUtils;
+import org.apache.directory.api.ldap.codec.api.LdapApiService;
+import org.apache.directory.api.ldap.extras.controls.syncrepl_impl.SyncDoneValueFactory;
+import org.apache.directory.api.ldap.extras.controls.syncrepl_impl.SyncRequestValueFactory;
+import org.apache.directory.api.ldap.extras.controls.syncrepl_impl.SyncStateValueFactory;
 import org.apache.directory.api.ldap.model.entry.DefaultEntry;
 import org.apache.directory.api.ldap.model.entry.Entry;
 import org.apache.directory.api.ldap.model.message.SearchRequest;
 import org.apache.directory.api.ldap.model.message.SearchRequestImpl;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
+import org.apache.directory.api.util.FileUtils;
 import org.apache.directory.api.util.Network;
+import org.apache.directory.api.util.Strings;
+import org.apache.directory.junit.tools.MultiThreadedMultiInvoker;
 import org.apache.directory.server.annotations.CreateLdapServer;
 import org.apache.directory.server.annotations.CreateTransport;
 import org.apache.directory.server.core.annotations.ContextEntry;
@@ -57,6 +63,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
 
 
@@ -67,6 +74,9 @@ import org.junit.Test;
  */
 public class StaleEventLogDetectionIT
 {
+    @Rule
+    public MultiThreadedMultiInvoker i = new MultiThreadedMultiInvoker( MultiThreadedMultiInvoker.NOT_THREADSAFE );
+
     private static LdapServer providerServer;
 
     private static SchemaManager schemaManager;
@@ -138,7 +148,7 @@ public class StaleEventLogDetectionIT
     }
 
 
-    @CreateDS(allowAnonAccess = true, name = "provider-replication", partitions =
+    @CreateDS(allowAnonAccess = true, name = "StaleEventLogDetectionIT-provider-replication", partitions =
         {
             @CreatePartition(
                 name = "example",
@@ -155,12 +165,18 @@ public class StaleEventLogDetectionIT
                         "dc: example"))
     })
     @CreateLdapServer(transports =
-        { @CreateTransport(port = 16000, protocol = "LDAP") })
+        { @CreateTransport(port = -1, protocol = "LDAP") })
     public static void startProvider() throws Exception
     {
         DirectoryService provDirService = DSAnnotationProcessor.getDirectoryService();
 
         providerServer = ServerAnnotationProcessor.getLdapServer( provDirService );
+
+        // Load the replication controls
+        LdapApiService codec = provDirService.getLdapCodecService();
+        codec.registerRequestControl( new SyncRequestValueFactory( codec ) );
+        codec.registerResponseControl( new SyncDoneValueFactory( codec ) );
+        codec.registerResponseControl( new SyncStateValueFactory( codec ) );
 
         providerServer.setReplicationReqHandler( new SyncReplRequestHandler() );
         providerServer.startReplicationProducer();
@@ -228,9 +244,9 @@ public class StaleEventLogDetectionIT
         final ReplicationConsumer syncreplClient = new MockSyncReplConsumer();
         final SyncReplConfiguration config = new SyncReplConfiguration();
         config.setRemoteHost( Network.LOOPBACK_HOSTNAME );
-        config.setRemotePort( 16000 );
+        config.setRemotePort( providerServer.getPort() );
         config.setReplUserDn( "uid=admin,ou=system" );
-        config.setReplUserPassword( "secret".getBytes() );
+        config.setReplUserPassword( Strings.getBytesUtf8( "secret" ) );
         config.setUseTls( false );
         config.setBaseDn( "dc=example,dc=com" );
         config.setRefreshInterval( 1000 );

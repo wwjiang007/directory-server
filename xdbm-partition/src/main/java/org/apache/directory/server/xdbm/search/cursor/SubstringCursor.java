@@ -60,6 +60,15 @@ public class SubstringCursor extends AbstractIndexCursor<String>
     private final IndexEntry<String, String> indexEntry = new IndexEntry<>();
 
 
+    /**
+     * Creates a new instance of an SubstringCursor
+     * 
+     * @param partitionTxn The transaction to use
+     * @param store The store
+     * @param substringEvaluator The SubstringEvaluator
+     * @throws LdapException If the creation failed
+     * @throws IndexNotFoundException If the index was not found
+     */
     @SuppressWarnings("unchecked")
     public SubstringCursor( PartitionTxn partitionTxn, Store store, final SubstringEvaluator substringEvaluator )
         throws LdapException, IndexNotFoundException
@@ -191,6 +200,7 @@ public class SubstringCursor extends AbstractIndexCursor<String>
     /**
      * {@inheritDoc}
      */
+    @Override
     public boolean previous() throws LdapException, CursorException
     {
         while ( wrapped.previous() )
@@ -216,6 +226,7 @@ public class SubstringCursor extends AbstractIndexCursor<String>
     /**
      * {@inheritDoc}
      */
+    @Override
     public boolean next() throws LdapException, CursorException
     {
         while ( wrapped.next() )

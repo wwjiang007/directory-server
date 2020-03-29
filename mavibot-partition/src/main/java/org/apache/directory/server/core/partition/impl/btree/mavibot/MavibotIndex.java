@@ -45,7 +45,6 @@ import org.apache.directory.server.core.partition.impl.btree.AbstractBTreePartit
 import org.apache.directory.server.core.partition.impl.btree.IndexCursorAdaptor;
 import org.apache.directory.server.i18n.I18n;
 import org.apache.directory.server.xdbm.AbstractIndex;
-import org.apache.directory.server.xdbm.EmptyIndexCursor;
 import org.apache.directory.server.xdbm.IndexEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,6 +91,9 @@ public class MavibotIndex<K> extends AbstractIndex<K, String>
     // ----------------------------------------------------------------------
     /**
      * Creates a JdbmIndex instance for a give AttributeId
+     * 
+     * @param attributeId The Attribute ID
+     * @param withReverse If we want a reverse index to be created
      */
     public MavibotIndex( String attributeId, boolean withReverse )
     {
@@ -107,6 +109,7 @@ public class MavibotIndex<K> extends AbstractIndex<K, String>
      * @param schemaManager The schemaManager to use to get back the Attribute
      * @param attributeType The attributeType this index is created for
      * @throws IOException If the initialization failed
+     * @throws LdapException If the initialization failed
      */
     public void init( SchemaManager schemaManager, AttributeType attributeType ) throws LdapException, IOException
     {
@@ -127,8 +130,7 @@ public class MavibotIndex<K> extends AbstractIndex<K, String>
 
         if ( this.wkDirPath == null )
         {
-            NullPointerException e = new NullPointerException( "The index working directory has not be set" );
-            throw e;
+            throw new NullPointerException( "The index working directory has not be set" );
         }
 
         try
@@ -297,7 +299,12 @@ public class MavibotIndex<K> extends AbstractIndex<K, String>
     // ------------------------------------------------------------------------
 
     /**
-     * @see Index#forwardLookup(java.lang.Object)
+     * Do a lookup using the forward table
+     * 
+     * @param partitionTxn The Transaction to use
+     * @param attrVal The Key we are looking for
+     * @return The found value
+     * @throws LdapException If the lookup failed
      */
     public String forwardLookup( PartitionTxn partitionTxn, K attrVal ) throws LdapException
     {
@@ -403,44 +410,10 @@ public class MavibotIndex<K> extends AbstractIndex<K, String>
     // ------------------------------------------------------------------------
     // Index Cursor Operations
     // ------------------------------------------------------------------------
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Cursor<IndexEntry<K, String>> reverseCursor( PartitionTxn partitionTxn ) throws LdapException
-    {
-        if ( withReverse )
-        {
-            return new IndexCursorAdaptor<>( partitionTxn, ( Cursor ) reverse.cursor(), false );
-        }
-        else
-        {
-            return new EmptyIndexCursor<>( partitionTxn );
-        }
-    }
-
-
     @SuppressWarnings("unchecked")
     public Cursor<IndexEntry<K, String>> forwardCursor( PartitionTxn partitionTxn ) throws LdapException
     {
         return new IndexCursorAdaptor<>( partitionTxn, ( Cursor ) forward.cursor(), true );
-    }
-
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Cursor<IndexEntry<K, String>> reverseCursor( PartitionTxn partitionTxn, String id ) throws LdapException
-    {
-        if ( withReverse )
-        {
-            return new IndexCursorAdaptor<>( partitionTxn, ( Cursor ) reverse.cursor( partitionTxn, id ), false );
-        }
-        else
-        {
-            return new EmptyIndexCursor<>( partitionTxn );
-        }
     }
 
 
@@ -550,11 +523,14 @@ public class MavibotIndex<K> extends AbstractIndex<K, String>
 
 
     /**
-     * @see Index#sync()
+     * Force the flush of this index
+     * 
+     * @throws IOException If the flush failed
      */
     public synchronized void sync() throws IOException
     {
         forward.getBTree().flush();
+        
         if ( reverse != null )
         {
             reverse.getBTree().flush();

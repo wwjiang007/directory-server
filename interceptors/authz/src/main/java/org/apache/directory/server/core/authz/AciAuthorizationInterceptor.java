@@ -280,7 +280,7 @@ public class AciAuthorizationInterceptor extends BaseInterceptor
      * the tuple and group membership caches, the ACIItem parser and the ACDF engine.
      *
      * @param directoryService the directory service core
-     * @throws Exception if there are problems during initialization
+     * @throws LdapException if there are problems during initialization
      */
     @Override
     public void init( DirectoryService directoryService ) throws LdapException
@@ -304,7 +304,7 @@ public class AciAuthorizationInterceptor extends BaseInterceptor
         // stuff for dealing with subentries (garbage for now)
         Value subschemaSubentry = directoryService.getPartitionNexus().getRootDseValue(
             directoryService.getAtProvider().getSubschemaSubentry() );
-        subschemaSubentryDn = dnFactory.create( subschemaSubentry.getValue() );
+        subschemaSubentryDn = dnFactory.create( subschemaSubentry.getString() );
 
         // Init the caches now
         initTupleCache();
@@ -395,7 +395,7 @@ public class AciAuthorizationInterceptor extends BaseInterceptor
 
         for ( Value value : subentries )
         {
-            String subentryDnStr = value.getValue();
+            String subentryDnStr = value.getString();
             Dn subentryDn = dnFactory.create( subentryDnStr );
             tuples.addAll( tupleCache.getACITuples( subentryDn.getNormName() ) );
         }
@@ -421,7 +421,7 @@ public class AciAuthorizationInterceptor extends BaseInterceptor
 
         for ( Value value : entryAci )
         {
-            String aciString = value.getValue();
+            String aciString = value.getString();
             ACIItem item;
 
             try
@@ -481,7 +481,7 @@ public class AciAuthorizationInterceptor extends BaseInterceptor
 
         for ( Value value : subentryAci )
         {
-            String aciString = value.getValue();
+            String aciString = value.getString();
             ACIItem item;
 
             try
@@ -1181,7 +1181,7 @@ public class AciAuthorizationInterceptor extends BaseInterceptor
     public void rename( RenameOperationContext renameContext ) throws LdapException
     {
         Dn oldName = renameContext.getDn();
-        Entry originalEntry = null;
+        Entry originalEntry = renameContext.getOriginalEntry();
 
         if ( renameContext.getEntry() != null )
         {
@@ -1337,7 +1337,7 @@ public class AciAuthorizationInterceptor extends BaseInterceptor
     }
 
 
-    public void cacheNewGroup( String name, Entry entry ) throws Exception
+    public void cacheNewGroup( String name, Entry entry ) throws LdapException
     {
         groupCache.groupAdded( name, entry );
     }

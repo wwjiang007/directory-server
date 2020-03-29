@@ -67,7 +67,7 @@ import org.slf4j.LoggerFactory;
 /**
  * A name normalization service.  This service makes sure all relative and distinguished
  * names are normalized before calls are made against the respective interface methods
- * on {@link DefaultPartitionNexus}.
+ * on DefaultPartitionNexus.
  *
  * The Filters are also normalized.
  *
@@ -461,6 +461,8 @@ public class NormalizationInterceptor extends BaseInterceptor
      */
     private ExprNode handleNotNode( ExprNode node )
     {
+        NotNode newNotNode = new NotNode();
+
         for ( ExprNode child : ( ( BranchNode ) node ).getChildren() )
         {
             ExprNode modifiedNode = removeObjectClass( child );
@@ -476,9 +478,12 @@ public class NormalizationInterceptor extends BaseInterceptor
                 // Here, we will select everything
                 return ObjectClassNode.OBJECT_CLASS_NODE;
             }
+            
+            newNotNode.addNode( modifiedNode );
+
         }
 
-        return node;
+        return newNotNode;
     }
 
 
@@ -487,6 +492,8 @@ public class NormalizationInterceptor extends BaseInterceptor
      */
     private ExprNode handleOrNode( ExprNode node )
     {
+        OrNode newOrNode = new OrNode();
+
         for ( ExprNode child : ( ( BranchNode ) node ).getChildren() )
         {
             ExprNode modifiedNode = removeObjectClass( child );
@@ -496,14 +503,16 @@ public class NormalizationInterceptor extends BaseInterceptor
                 // We can return immediately with an ObjectClass node
                 return ObjectClassNode.OBJECT_CLASS_NODE;
             }
+            
+            newOrNode.addNode( modifiedNode );
         }
 
-        return node;
+        return newOrNode;
     }
 
 
     /**
-     * Remove the (ObjectClass=*) node from the filter, if we have one.
+     * Remove the (ObjectClass=*) and ( ObjectClass=top) nodes from the filter, if we have one.
      */
     private ExprNode removeObjectClass( ExprNode node )
     {
@@ -577,7 +586,7 @@ public class NormalizationInterceptor extends BaseInterceptor
         for ( Ava ava : rdn )
         {
             Value value = ava.getValue();
-            String upValue = ava.getValue().getValue();
+            String upValue = ava.getValue().getString();
             String upId = ava.getType();
 
             // Check that the entry contains this Ava

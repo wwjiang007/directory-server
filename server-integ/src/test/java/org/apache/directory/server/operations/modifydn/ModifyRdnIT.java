@@ -131,7 +131,6 @@ public class ModifyRdnIT extends AbstractLdapTestUnit
     public void testModifyRdnAndDeleteOld() throws Exception
     {
         LdapConnection connection = ServerIntegrationUtils.getAdminConnection( getLdapServer() );
-        //connection.setTimeOut( 0L );
         connection.loadSchema();
 
         // Create a person, cn value is rdn
@@ -182,12 +181,10 @@ public class ModifyRdnIT extends AbstractLdapTestUnit
      * Modify Rdn of an entry, delete its old rdn value and search before and
      * after rename.
      */
-    //@Ignore
     @Test
     public void testModifyRdnAndDeleteOldWithSearchInBetween() throws Exception
     {
         LdapConnection connection = ServerIntegrationUtils.getAdminConnection( getLdapServer() );
-        // connection.setTimeOut( 0L );
         connection.loadSchema();
 
         // Create a person, cn value is rdn

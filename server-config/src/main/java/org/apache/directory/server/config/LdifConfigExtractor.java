@@ -24,12 +24,12 @@ package org.apache.directory.server.config;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Writer;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -74,6 +74,7 @@ public final class LdifConfigExtractor
     /**
      * Extracts the LDIF files from a Jar file or copies exploded LDIF resources.
      *
+     * @param outputDirectory The directory where to extract the configuration
      * @param overwrite over write extracted structure if true, false otherwise
      * @throws IOException if schema already extracted and on IO errors
      */
@@ -134,12 +135,9 @@ public final class LdifConfigExtractor
     {
         LOG.debug( "copyFile(): source = {}, destination = {}", source, destination );
 
-        if ( !destination.getParentFile().exists() )
+        if ( !destination.getParentFile().exists() && !destination.getParentFile().mkdirs() )
         {
-            if ( !destination.getParentFile().mkdirs() )
-            {
-                throw new IOException( I18n.err( I18n.ERR_112_COULD_NOT_CREATE_DIRECTORY, destination.getParentFile() ) );
-            }
+            throw new IOException( I18n.err( I18n.ERR_112_COULD_NOT_CREATE_DIRECTORY, destination.getParentFile() ) );
         }
 
         if ( !source.getParentFile().exists() )
@@ -147,17 +145,18 @@ public final class LdifConfigExtractor
             throw new FileNotFoundException( I18n.err( I18n.ERR_509, source.getAbsolutePath() ) );
         }
 
-        FileWriter out = new FileWriter( destination );
-        BufferedReader in = new BufferedReader( new FileReader( source ) );
-        String line;
-        while ( null != ( line = in.readLine() ) )
+        try ( Writer out = Files.newBufferedWriter( destination.toPath(), StandardCharsets.UTF_8 );
+            BufferedReader in = Files.newBufferedReader( source.toPath(), StandardCharsets.UTF_8 ); )
         {
-            out.write( line + "\n" );
-        }
+            String line;
 
-        in.close();
-        out.flush();
-        out.close();
+            while ( null != ( line = in.readLine() ) )
+            {
+                out.write( line + "\n" );
+            }
+
+            out.flush();
+        }
     }
 
 
@@ -184,13 +183,10 @@ public final class LdifConfigExtractor
                 return;
             }
 
-            if ( !destination.getParentFile().exists() )
+            if ( !destination.getParentFile().exists() && !destination.getParentFile().mkdirs() )
             {
-                if ( !destination.getParentFile().mkdirs() )
-                {
-                    throw new IOException( I18n.err( I18n.ERR_112_COULD_NOT_CREATE_DIRECTORY,
-                        destination.getParentFile() ) );
-                }
+                throw new IOException( I18n.err( I18n.ERR_112_COULD_NOT_CREATE_DIRECTORY,
+                    destination.getParentFile() ) );
             }
 
             try ( OutputStream out = Files.newOutputStream( destination.toPath() ) )
@@ -215,7 +211,7 @@ public final class LdifConfigExtractor
     private static File getDestinationFile( File outputDirectory, File resource )
     {
         File parent = resource.getParentFile();
-        Stack<String> fileComponentStack = new Stack<String>();
+        Stack<String> fileComponentStack = new Stack<>();
         fileComponentStack.push( resource.getName() );
 
         while ( parent != null )
@@ -268,6 +264,7 @@ public final class LdifConfigExtractor
      * extracts or overwrites the configuration LDIF file and returns the absolute path of this file
      *
      * @param configDir the directory where the config file should be extracted to
+     * @param file The file containing the configuration
      * @param overwrite flag to indicate to overwrite the config file if already present in the given config directory
      * @return complete path of the config file on disk
      */
@@ -307,8 +304,9 @@ public final class LdifConfigExtractor
 
             byte[] buf = new byte[1024 * 1024];
 
+            
             try ( InputStream in = configUrl.openStream();
-                FileWriter fw = new FileWriter( configFile ) )
+                Writer writer = Files.newBufferedWriter( configFile.toPath(), StandardCharsets.UTF_8 ) )
             {
                 while ( true )
                 {
@@ -320,7 +318,7 @@ public final class LdifConfigExtractor
                     }
 
                     String s = Strings.utf8ToString( buf, 0, read );
-                    fw.write( s );
+                    writer.write( s );
                 }
             }
 

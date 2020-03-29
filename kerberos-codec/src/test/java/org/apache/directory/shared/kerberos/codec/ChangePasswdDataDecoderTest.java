@@ -41,7 +41,6 @@ public class ChangePasswdDataDecoderTest
     @Test
     public void testDecodeChangePasswdData() throws Exception
     {
-        Asn1Decoder decoder = new Asn1Decoder();
 
         ByteBuffer buf = ByteBuffer.allocate( 0x30 );
         buf.put( new byte[]
@@ -100,11 +99,11 @@ public class ChangePasswdDataDecoderTest
 
         ChangePasswdDataContainer container = new ChangePasswdDataContainer( buf );
 
-        decoder.decode( buf, container );
+        Asn1Decoder.decode( buf, container );
 
         ChangePasswdData chngPwdData = container.getChngPwdData();
 
-        assertArrayEquals( "secret".getBytes(), chngPwdData.getNewPasswd() );
+        assertArrayEquals( Strings.getBytesUtf8( "secret" ), chngPwdData.getNewPasswd() );
         assertEquals( "krbtgt", chngPwdData.getTargName().getNameString() );
         assertEquals( "EXAMPLE.COM", chngPwdData.getTargRealm() );
 
@@ -116,7 +115,6 @@ public class ChangePasswdDataDecoderTest
     @Test
     public void testDecodeChangePasswdDataWithoutTargName() throws Exception
     {
-        Asn1Decoder decoder = new Asn1Decoder();
 
         ByteBuffer buf = ByteBuffer.allocate( 0x1B );
         buf.put( new byte[]
@@ -154,11 +152,11 @@ public class ChangePasswdDataDecoderTest
 
         ChangePasswdDataContainer container = new ChangePasswdDataContainer( buf );
 
-        decoder.decode( buf, container );
+        Asn1Decoder.decode( buf, container );
 
         ChangePasswdData chngPwdData = container.getChngPwdData();
 
-        assertArrayEquals( "secret".getBytes(), chngPwdData.getNewPasswd() );
+        assertArrayEquals( Strings.getBytesUtf8( "secret" ), chngPwdData.getNewPasswd() );
         assertEquals( "EXAMPLE.COM", chngPwdData.getTargRealm() );
 
         String encodedPdu = Strings.dumpBytes( chngPwdData.encode( null ).array() );
@@ -169,7 +167,6 @@ public class ChangePasswdDataDecoderTest
     @Test
     public void testDecodeChangePasswdDataWithoutTargRealm() throws Exception
     {
-        Asn1Decoder decoder = new Asn1Decoder();
 
         ByteBuffer buf = ByteBuffer.allocate( 0x21 );
         buf.put( new byte[]
@@ -212,11 +209,11 @@ public class ChangePasswdDataDecoderTest
 
         ChangePasswdDataContainer container = new ChangePasswdDataContainer( buf );
 
-        decoder.decode( buf, container );
+        Asn1Decoder.decode( buf, container );
 
         ChangePasswdData chngPwdData = container.getChngPwdData();
 
-        assertArrayEquals( "secret".getBytes(), chngPwdData.getNewPasswd() );
+        assertArrayEquals( Strings.getBytesUtf8( "secret" ), chngPwdData.getNewPasswd() );
         assertEquals( "krbtgt", chngPwdData.getTargName().getNameString() );
 
         String encodedPdu = Strings.dumpBytes( chngPwdData.encode( null ).array() );
@@ -227,7 +224,6 @@ public class ChangePasswdDataDecoderTest
     @Test
     public void testDecodeChangePasswdDataWithoutTargNameAndRealm() throws Exception
     {
-        Asn1Decoder decoder = new Asn1Decoder();
 
         ByteBuffer buf = ByteBuffer.allocate( 0x0C );
         buf.put( new byte[]
@@ -249,11 +245,11 @@ public class ChangePasswdDataDecoderTest
 
         ChangePasswdDataContainer container = new ChangePasswdDataContainer( buf );
 
-        decoder.decode( buf, container );
+        Asn1Decoder.decode( buf, container );
 
         ChangePasswdData chngPwdData = container.getChngPwdData();
 
-        assertArrayEquals( "secret".getBytes(), chngPwdData.getNewPasswd() );
+        assertArrayEquals( Strings.getBytesUtf8( "secret" ), chngPwdData.getNewPasswd() );
 
         String encodedPdu = Strings.dumpBytes( chngPwdData.encode( null ).array() );
         assertEquals( decodedPdu, encodedPdu );

@@ -42,19 +42,21 @@ public class AttributeTypeProvider
     private final AttributeType entryCSN;
     private final AttributeType entryDN;
     private final AttributeType entryUUID;
+    private final AttributeType hasSubordinates;
     private final AttributeType member;
     private final AttributeType modifiersName;
     private final AttributeType modifyTimestamp;
+    private final AttributeType nbChildren;
+    private final AttributeType nbSubordinates;
     private final AttributeType objectClass;
     private final AttributeType prescriptiveACI;
+    private final AttributeType structuralObjectClass;
     private final AttributeType subentryACI;
     private final AttributeType subschemaSubentry;
     private final AttributeType subtreeSpecification;
     private final AttributeType triggerExecutionSubentries;
     private final AttributeType uniqueMember;
     private final AttributeType userPassword;
-    private final AttributeType nbChildren;
-    private final AttributeType nbSubordinates;
 
     private final AttributeType[] subentryOperationalAttributes;
 
@@ -72,11 +74,15 @@ public class AttributeTypeProvider
         entryCSN = schemaManager.getAttributeType( SchemaConstants.ENTRY_CSN_AT );
         entryDN = schemaManager.getAttributeType( SchemaConstants.ENTRY_DN_AT );
         entryUUID = schemaManager.getAttributeType( SchemaConstants.ENTRY_UUID_AT );
+        hasSubordinates = schemaManager.getAttributeType( SchemaConstants.HAS_SUBORDINATES_AT );
         member = schemaManager.getAttributeType( SchemaConstants.MEMBER_AT );
         modifiersName = schemaManager.getAttributeType( SchemaConstants.MODIFIERS_NAME_AT );
         modifyTimestamp = schemaManager.getAttributeType( SchemaConstants.MODIFY_TIMESTAMP_AT );
+        nbChildren = schemaManager.getAttributeType( ApacheSchemaConstants.NB_CHILDREN_OID );
+        nbSubordinates = schemaManager.getAttributeType( ApacheSchemaConstants.NB_SUBORDINATES_OID );
         objectClass = schemaManager.getAttributeType( SchemaConstants.OBJECT_CLASS_AT );
         prescriptiveACI = schemaManager.getAttributeType( SchemaConstants.PRESCRIPTIVE_ACI_AT );
+        structuralObjectClass = schemaManager.getAttributeType( SchemaConstants.STRUCTURAL_OBJECT_CLASS_AT );
         subentryACI = schemaManager.getAttributeType( SchemaConstants.SUBENTRY_ACI_AT_OID );
         subschemaSubentry = schemaManager.getAttributeType( SchemaConstants.SUBSCHEMA_SUBENTRY_AT );
         subtreeSpecification = schemaManager.getAttributeType( SchemaConstants.SUBTREE_SPECIFICATION_AT );
@@ -84,8 +90,6 @@ public class AttributeTypeProvider
             .getAttributeType( ApacheSchemaConstants.TRIGGER_EXECUTION_SUBENTRIES_AT );
         uniqueMember = schemaManager.getAttributeType( SchemaConstants.UNIQUE_MEMBER_AT_OID );
         userPassword = schemaManager.getAttributeType( SchemaConstants.USER_PASSWORD_AT_OID );
-        nbChildren = schemaManager.getAttributeType( ApacheSchemaConstants.NB_CHILDREN_OID );
-        nbSubordinates = schemaManager.getAttributeType( ApacheSchemaConstants.NB_SUBORDINATES_OID );
 
         subentryOperationalAttributes = new AttributeType[]
             {
@@ -98,7 +102,7 @@ public class AttributeTypeProvider
 
 
     /** 
-     * @return the <code>accessControlSubentries<code> {@link AttributeType}.
+     * @return the <code>accessControlSubentries</code> {@link AttributeType}.
      */
     public AttributeType getAccessControlSubentries()
     {
@@ -107,7 +111,7 @@ public class AttributeTypeProvider
 
 
     /** 
-     * @return the <code>administrativeRole<code> {@link AttributeType}.
+     * @return the <code>administrativeRole</code> {@link AttributeType}.
      */
     public AttributeType getAdministrativeRole()
     {
@@ -116,7 +120,7 @@ public class AttributeTypeProvider
 
 
     /** 
-     * @return the <code>collectiveAttributeSubentries<code> {@link AttributeType}.
+     * @return the <code>collectiveAttributeSubentries</code> {@link AttributeType}.
      */
     public AttributeType getCollectiveAttributeSubentries()
     {
@@ -125,7 +129,7 @@ public class AttributeTypeProvider
 
 
     /** 
-     * @return the <code>collectiveExclusions<code> {@link AttributeType}.
+     * @return the <code>collectiveExclusions</code> {@link AttributeType}.
      */
     public AttributeType getCollectiveExclusions()
     {
@@ -134,7 +138,7 @@ public class AttributeTypeProvider
 
 
     /** 
-     * @return the <code>creatorsName<code> {@link AttributeType}.
+     * @return the <code>creatorsName</code> {@link AttributeType}.
      */
     public AttributeType getCreatorsName()
     {
@@ -143,7 +147,7 @@ public class AttributeTypeProvider
 
 
     /** 
-     * @return the <code>createTimestamp<code> {@link AttributeType}.
+     * @return the <code>createTimestamp</code> {@link AttributeType}.
      */
     public AttributeType getCreateTimestamp()
     {
@@ -152,7 +156,7 @@ public class AttributeTypeProvider
 
 
     /** 
-     * @return the <code>entryACI<code> {@link AttributeType}.
+     * @return the <code>entryACI</code> {@link AttributeType}.
      */
     public AttributeType getEntryACI()
     {
@@ -161,7 +165,7 @@ public class AttributeTypeProvider
 
 
     /** 
-     * @return the <code>entryCSN<code> {@link AttributeType}.
+     * @return the <code>entryCSN</code> {@link AttributeType}.
      */
     public AttributeType getEntryCSN()
     {
@@ -170,7 +174,7 @@ public class AttributeTypeProvider
 
 
     /** 
-     * @return the <code>entryDN<code> {@link AttributeType}.
+     * @return the <code>entryDN</code> {@link AttributeType}.
      */
     public AttributeType getEntryDN()
     {
@@ -179,7 +183,7 @@ public class AttributeTypeProvider
 
 
     /** 
-     * @return the <code>entryUUID<code> {@link AttributeType}.
+     * @return the <code>entryUUID</code> {@link AttributeType}.
      */
     public AttributeType getEntryUUID()
     {
@@ -187,8 +191,17 @@ public class AttributeTypeProvider
     }
 
 
+    /**
+     * @return the <code>hasSubordinates</code> {@link AttributeType}.
+     */
+    public AttributeType getHasSubordinates()
+    {
+        return hasSubordinates;
+    }
+
+
     /** 
-     * @return the <code>member<code> {@link AttributeType}.
+     * @return the <code>member</code> {@link AttributeType}.
      */
     public AttributeType getMember()
     {
@@ -197,7 +210,7 @@ public class AttributeTypeProvider
 
 
     /** 
-     * @return the <code>modifiersName<code> {@link AttributeType}.
+     * @return the <code>modifiersName</code> {@link AttributeType}.
      */
     public AttributeType getModifiersName()
     {
@@ -206,7 +219,7 @@ public class AttributeTypeProvider
 
 
     /** 
-     * @return the <code>modifyTimestamp<code> {@link AttributeType}.
+     * @return the <code>modifyTimestamp</code> {@link AttributeType}.
      */
     public AttributeType getModifyTimestamp()
     {
@@ -214,71 +227,8 @@ public class AttributeTypeProvider
     }
 
 
-    /** 
-     * @return the <code>objectClass<code> {@link AttributeType}.
-     */
-    public AttributeType getObjectClass()
-    {
-        return objectClass;
-    }
-
-
-    /** 
-     * @return the <code>prescriptiveACI<code> {@link AttributeType}.
-     */
-    public AttributeType getPrescriptiveACI()
-    {
-        return prescriptiveACI;
-    }
-
-
-    /** 
-     * @return the <code>subentryACI<code> {@link AttributeType}.
-     */
-    public AttributeType getSubentryACI()
-    {
-        return subentryACI;
-    }
-
-
-    /** 
-     * @return the <code>subschemaSubentry<code> {@link AttributeType}.
-     */
-    public AttributeType getSubschemaSubentry()
-    {
-        return subschemaSubentry;
-    }
-
-
-    /** 
-     * @return the <code>subtreeSpecification<code> {@link AttributeType}.
-     */
-    public AttributeType getSubtreeSpecification()
-    {
-        return subtreeSpecification;
-    }
-
-
-    /** 
-     * @return the <code>triggerExecutionSubentries<code> {@link AttributeType}.
-     */
-    public AttributeType getTriggerExecutionSubentries()
-    {
-        return triggerExecutionSubentries;
-    }
-
-
-    /** 
-     * @return the <code>uniqueMember<code> {@link AttributeType}.
-     */
-    public AttributeType getUniqueMember()
-    {
-        return uniqueMember;
-    }
-
-
     /**
-     * @return the operational attributes of n nbChildren
+     * @return the <code>nbChildren</code> {@link AttributeType}.
      */
     public AttributeType getNbChildren()
     {
@@ -287,7 +237,7 @@ public class AttributeTypeProvider
 
 
     /**
-     * @return the operational attributes of a nbSubordinates
+     * @return the <code>nbSubordinates</code> {@link AttributeType}.
      */
     public AttributeType getNbSubordinates()
     {
@@ -296,7 +246,79 @@ public class AttributeTypeProvider
 
 
     /** 
-     * @return the <code>userPassword<code> {@link AttributeType}.
+     * @return the <code>objectClass</code> {@link AttributeType}.
+     */
+    public AttributeType getObjectClass()
+    {
+        return objectClass;
+    }
+
+
+    /** 
+     * @return the <code>prescriptiveACI</code> {@link AttributeType}.
+     */
+    public AttributeType getPrescriptiveACI()
+    {
+        return prescriptiveACI;
+    }
+
+
+    /** 
+     * @return the <code>structuralObjectClass</code> {@link AttributeType}.
+     */
+    public AttributeType getStructuralObjectClass()
+    {
+        return structuralObjectClass;
+    }
+
+
+    /** 
+     * @return the <code>subentryACI</code> {@link AttributeType}.
+     */
+    public AttributeType getSubentryACI()
+    {
+        return subentryACI;
+    }
+
+
+    /** 
+     * @return the <code>subschemaSubentry</code> {@link AttributeType}.
+     */
+    public AttributeType getSubschemaSubentry()
+    {
+        return subschemaSubentry;
+    }
+
+
+    /** 
+     * @return the <code>subtreeSpecification</code> {@link AttributeType}.
+     */
+    public AttributeType getSubtreeSpecification()
+    {
+        return subtreeSpecification;
+    }
+
+
+    /** 
+     * @return the <code>triggerExecutionSubentries</code> {@link AttributeType}.
+     */
+    public AttributeType getTriggerExecutionSubentries()
+    {
+        return triggerExecutionSubentries;
+    }
+
+
+    /** 
+     * @return the <code>uniqueMember</code> {@link AttributeType}.
+     */
+    public AttributeType getUniqueMember()
+    {
+        return uniqueMember;
+    }
+
+
+    /** 
+     * @return the <code>userPassword</code> {@link AttributeType}.
      */
     public AttributeType getUserPassword()
     {

@@ -27,7 +27,7 @@ DIRNAME="${NAME}"
 SERVICE_NAME="${NAME}-default"
 
 wait_for_apacheds() {
-    timeout 30  sh -c "while ! nc -z localhost 10389; do sleep 1; done"
+    timeout 60  sh -c "while ! nc -z localhost 10389; do sleep 1; done"
 }
 
 # stop execution if any command fails (i.e. exits with status code > 0)
@@ -63,6 +63,10 @@ service ${SERVICE_NAME} status || test $? -ne 0
 # install ldapsearch and tools
 apt-get -qq update
 apt-get -qq -y install ldap-utils netcat
+
+# set wrapper java path
+echo "" >> /var/lib/${DIRNAME}/default/conf/wrapper-instance.conf
+echo "wrapper.java.command=$JAVA_HOME/bin/java" >> /var/lib/${DIRNAME}/default/conf/wrapper-instance.conf
 
 # start
 service ${SERVICE_NAME} start
@@ -100,7 +104,7 @@ service ${SERVICE_NAME} status || test $? -ne 0
 # assert password warning in log
 grep ".*WARN.*admin password.*security breach.*" /var/lib/${DIRNAME}/default/log/apacheds.log
 # assert no error in log
-! grep ".*ERROR.*" /var/lib/${DIRNAME}/default/log/apacheds.log
+grep ".*ERROR.*" /var/lib/${DIRNAME}/default/log/apacheds.log && false
 
 # SUCCESS
 echo "SUCCESS"

@@ -19,16 +19,19 @@ package org.apache.directory.server;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.UUID;
 
 import org.apache.directory.api.util.Network;
+import org.apache.directory.api.util.Strings;
 import org.apache.directory.server.core.api.InstanceLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,8 +57,8 @@ public class UberjarMain
      * Takes a single argument, the path to the installation home, which
      * contains the configuration to load with server startup settings.
      *
-     * @param args
-     *            the arguments
+     * @param args the arguments
+     * @throws Exception If the startup failed
      */
     public static void main( String[] args ) throws Exception
     {
@@ -83,7 +86,8 @@ public class UberjarMain
                 LOG.debug( "Stopping runtime" );
                 InstanceLayout layout = new InstanceLayout( instanceDirectory );
                 try ( Socket socket = new Socket( Network.LOOPBACK, readShutdownPort( layout ) );
-                    PrintWriter writer = new PrintWriter( socket.getOutputStream() ) )
+                    OutputStreamWriter osw = new OutputStreamWriter( socket.getOutputStream(), StandardCharsets.UTF_8 );
+                    PrintWriter writer = new PrintWriter( osw ) )
                 {
                     writer.print( readShutdownPassword( layout ) );
                 }
@@ -118,17 +122,15 @@ public class UberjarMain
     
     private static int readShutdownPort( InstanceLayout layout ) throws IOException 
     {
-        return Integer.parseInt( new String( Files.readAllBytes( 
-                Paths.get( layout.getRunDirectory().getAbsolutePath(), ".shutdown.port" ) ),
-                Charset.forName( "utf-8" ) ) );
+        return Integer.parseInt( Strings.asciiBytesToString( 
+                Files.readAllBytes( Paths.get( layout.getRunDirectory().getAbsolutePath(), ".shutdown.port" ) ) ) );
     }
     
 
     private static String readShutdownPassword( InstanceLayout layout ) throws IOException 
     {
-        return new String( Files.readAllBytes( 
-                Paths.get( layout.getRunDirectory().getAbsolutePath(), ".shutdown.pwd" ) ),
-                Charset.forName( "utf-8" ) );
+        return Strings.asciiBytesToString(  Files.readAllBytes( 
+                Paths.get( layout.getRunDirectory().getAbsolutePath(), ".shutdown.pwd" ) ) );
     }
 
     
@@ -258,9 +260,10 @@ public class UberjarMain
                         }
                         else
                         {
-                            try
+                            try ( InputStreamReader reader = new InputStreamReader( socket.getInputStream(),
+                                StandardCharsets.UTF_8 ); )
                             {
-                                InputStreamReader reader = new InputStreamReader( socket.getInputStream() );
+                                
                                 
                                 CharBuffer buffer = CharBuffer.allocate( 2048 );
                                 while ( reader.read( buffer ) >= 0 )
@@ -269,8 +272,6 @@ public class UberjarMain
                                 }
                                 buffer.flip();
                                 String password = buffer.toString();
-                                
-                                reader.close();
                                 
                                 if ( shutdownPassword.equals( password ) )
                                 {

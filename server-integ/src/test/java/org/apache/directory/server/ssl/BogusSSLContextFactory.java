@@ -116,7 +116,7 @@ public class BogusSSLContextFactory
     private static SSLContext createBougusServerSSLContext() throws GeneralSecurityException, IOException
     {
         // Create keystore
-        KeyStore ks = KeyStore.getInstance( "JKS" );
+        KeyStore ks = KeyStore.getInstance( KeyStore.getDefaultType() );
         InputStream in = null;
         try
         {
@@ -138,7 +138,7 @@ public class BogusSSLContextFactory
         }
 
         // Set up key manager factory to use our key store
-        KeyManagerFactory kmf = KeyManagerFactory.getInstance( "SunX509" );
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance( KeyManagerFactory.getDefaultAlgorithm() );
         kmf.init( ks, BOGUS_PW );
 
         // Initialize the SSLContext to work with our key managers.

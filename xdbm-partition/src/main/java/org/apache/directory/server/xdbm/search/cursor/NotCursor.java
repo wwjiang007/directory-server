@@ -55,7 +55,16 @@ public class NotCursor<V> extends AbstractIndexCursor<V>
     private final Evaluator<? extends ExprNode> childEvaluator;
 
 
-    public NotCursor( PartitionTxn partitionTxn, Store store, Evaluator<? extends ExprNode> childEvaluator ) throws LdapException
+    /**
+     * Creates a new instance of an NotCursor
+     * 
+     * @param partitionTxn The transaction to use
+     * @param store The store
+     * @param childEvaluator The inner evaluator
+     * @throws LdapException If the creation failed
+     */
+    public NotCursor( PartitionTxn partitionTxn, Store store, Evaluator<? extends ExprNode> childEvaluator ) 
+            throws LdapException
     {
         if ( IS_DEBUG )
         {
@@ -125,6 +134,7 @@ public class NotCursor<V> extends AbstractIndexCursor<V>
     /**
      * {@inheritDoc}
      */
+    @Override
     public boolean previous() throws LdapException, CursorException
     {
         while ( uuidCursor.previous() )
@@ -145,6 +155,7 @@ public class NotCursor<V> extends AbstractIndexCursor<V>
     /**
      * {@inheritDoc}
      */
+    @Override
     public boolean next() throws LdapException, CursorException
     {
         while ( uuidCursor.next() )

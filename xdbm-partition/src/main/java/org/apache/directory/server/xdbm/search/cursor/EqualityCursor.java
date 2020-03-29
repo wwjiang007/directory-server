@@ -73,9 +73,12 @@ public class EqualityCursor<V> extends AbstractIndexCursor<V>
 
     /**
      * Creates a new instance of an EqualityCursor
+     * 
+     * @param partitionTxn The transaction to use
      * @param store The store
      * @param equalityEvaluator The EqualityEvaluator
-     * @throws Exception If the creation failed
+     * @throws LdapException If the creation failed
+     * @throws IndexNotFoundException If the index was not found
      */
     @SuppressWarnings("unchecked")
     public EqualityCursor( PartitionTxn partitionTxn, Store store, EqualityEvaluator<V> equalityEvaluator ) 
@@ -95,7 +98,7 @@ public class EqualityCursor<V> extends AbstractIndexCursor<V>
         if ( store.hasIndexOn( attributeType ) )
         {
             Index<V, String> userIndex = ( Index<V, String> ) store.getIndex( attributeType );
-            String normalizedValue = attributeType.getEquality().getNormalizer().normalize( value.getValue() );
+            String normalizedValue = attributeType.getEquality().getNormalizer().normalize( value.getString() );
             userIdxCursor = userIndex.forwardCursor( partitionTxn, ( V ) normalizedValue );
             uuidIdxCursor = null;
         }
@@ -234,6 +237,7 @@ public class EqualityCursor<V> extends AbstractIndexCursor<V>
     /**
      * {@inheritDoc}
      */
+    @Override
     public boolean previous() throws LdapException, CursorException
     {
         if ( userIdxCursor != null )
@@ -259,6 +263,7 @@ public class EqualityCursor<V> extends AbstractIndexCursor<V>
     /**
      * {@inheritDoc}
      */
+    @Override
     public boolean next() throws LdapException, CursorException
     {
         if ( userIdxCursor != null )

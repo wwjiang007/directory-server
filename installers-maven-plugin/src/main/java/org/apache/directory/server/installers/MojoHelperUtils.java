@@ -26,12 +26,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
@@ -78,9 +77,8 @@ public final class MojoHelperUtils
         InputStream from, File to, boolean filtering ) throws IOException
     {
         // buffer so it isn't reading a byte at a time!
-        try ( Reader fileReader = new BufferedReader( new InputStreamReader( from ) );
-            OutputStream out = Files.newOutputStream( to.toPath() );
-            Writer fileWriter = new OutputStreamWriter( out ) )
+        try ( Reader fileReader = new BufferedReader( new InputStreamReader( from, StandardCharsets.UTF_8 ) );
+            Writer writer = Files.newBufferedWriter( to.toPath(), StandardCharsets.UTF_8 ) )
         {
             Reader reader = null;
             if ( filtering )
@@ -104,7 +102,7 @@ public final class MojoHelperUtils
             {
                 reader = fileReader;
             }
-            IOUtil.copy( reader, fileWriter );
+            IOUtil.copy( reader, writer );
         }
     }
 
@@ -117,40 +115,31 @@ public final class MojoHelperUtils
     }
 
 
-    public static void copyDependencies( GenerateMojo mymojo, InstallationLayout layout )
-        throws MojoFailureException
-    {
-        copyDependencies( mymojo, layout, true );
-    }
-
-
     public static void copyDependencies( GenerateMojo myMojo, InstallationLayout layout,
         boolean includeWrapperDependencies )
         throws MojoFailureException
     {
         // Creating the excludes set
-        Set<String> excludes = new HashSet<String>();
+        Set<String> includes = new HashSet<>();
 
-        if ( myMojo.getExcludes() != null )
-        {
-            excludes.addAll( myMojo.getExcludes() );
-        }
+        // Always add the apacheds-service.jar
+        includes.add( "org.apache.directory.server:apacheds-service" );
 
         // Adding the wrapper dependencies to the excludes set
-        if ( !includeWrapperDependencies )
+        if ( includeWrapperDependencies )
         {
-            excludes.add( "org.apache.directory.server:apacheds-wrapper" );
-            excludes.add( "tanukisoft:wrapper" );
+            includes.add( "org.apache.directory.server:apacheds-wrapper" );
+            includes.add( "tanukisoft:wrapper" );
         }
 
         // Filtering and copying dependencies
-        List<Artifact> artifacts = ( List<Artifact> ) ( myMojo.getProject().getRuntimeArtifacts() );
+        Set<Artifact> artifacts = myMojo.getProject().getArtifacts();
 
         for ( Artifact artifact : artifacts )
         {
             String key = artifact.getGroupId() + ":" + artifact.getArtifactId();
 
-            if ( !excludes.contains( key ) )
+            if ( includes.contains( key ) )
             {
                 try
                 {
@@ -175,10 +164,11 @@ public final class MojoHelperUtils
 
         if ( doSudo )
         {
-            StringBuffer cmdString = new StringBuffer( " " );
-            for ( int ii = 0; ii < cmd.length; ii++ )
+            StringBuilder cmdString = new StringBuilder( " " );
+            
+            for ( String command : cmd )
             {
-                cmdString.append( cmd[ii] ).append( " " );
+                cmdString.append( command ).append( " " );
             }
 
             String[] temp = new String[2];
@@ -187,10 +177,11 @@ public final class MojoHelperUtils
             cmd = temp;
         }
 
-        StringBuffer cmdString = new StringBuffer( " " );
-        for ( int ii = 0; ii < cmd.length; ii++ )
+        StringBuilder cmdString = new StringBuilder( " " );
+        
+        for ( String command : cmd )
         {
-            cmdString.append( cmd[ii] ).append( " " );
+            cmdString.append( command ).append( " " );
         }
 
         try

@@ -23,11 +23,15 @@ package org.apache.directory.server.core.shared;
 import java.io.File;
 import java.io.IOException;
 import java.net.SocketAddress;
+import java.nio.file.Files;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 import jdbm.recman.BaseRecordManager;
 
@@ -62,7 +66,7 @@ import org.apache.directory.api.ldap.model.message.UnbindRequest;
 import org.apache.directory.api.ldap.model.message.controls.SortKey;
 import org.apache.directory.api.ldap.model.message.controls.SortRequest;
 import org.apache.directory.api.ldap.model.message.controls.SortResponse;
-import org.apache.directory.api.ldap.model.message.controls.SortResponseControlImpl;
+import org.apache.directory.api.ldap.model.message.controls.SortResponseImpl;
 import org.apache.directory.api.ldap.model.message.controls.SortResultCode;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.name.Rdn;
@@ -89,6 +93,8 @@ import org.apache.directory.server.core.api.interceptor.context.OperationContext
 import org.apache.directory.server.core.api.interceptor.context.RenameOperationContext;
 import org.apache.directory.server.core.api.interceptor.context.SearchOperationContext;
 import org.apache.directory.server.core.api.interceptor.context.UnbindOperationContext;
+import org.apache.directory.server.core.api.partition.Partition;
+import org.apache.directory.server.core.api.partition.PartitionTxn;
 import org.apache.directory.server.i18n.I18n;
 import org.apache.mina.core.session.IoSession;
 import org.slf4j.Logger;
@@ -129,6 +135,15 @@ public class DefaultCoreSession implements CoreSession
     /** flag to indicate if the password must be changed */
     private boolean pwdMustChange;
 
+    /** A flag set when the startTransaction extended operation has been received */
+    private boolean hasSessionTransaction;
+    
+    /** The Map containing the transactions associated with each partition */
+    private Map<String, PartitionTxn> transactionMap = new HashMap<>();
+    
+    /** The transaction ID */
+    private AtomicLong transactionId = new AtomicLong( 0 );
+
     /**
      * Creates a new instance of a DefaultCoreSession
      * @param principal The principal to use to process operation for this session
@@ -150,6 +165,17 @@ public class DefaultCoreSession implements CoreSession
 
         // setup attribute type value
         objectClassAT = directoryService.getSchemaManager().getAttributeType( SchemaConstants.OBJECT_CLASS_AT );
+    }
+
+
+    /**
+     * Gets the IoSession from the CoreSession. This is only useful when the server is not embedded.
+     * 
+     * @return ioSession The IoSession for this CoreSession
+     */
+    public IoSession getIoSession()
+    {
+        return ioSession;
     }
 
 
@@ -1227,18 +1253,6 @@ public class DefaultCoreSession implements CoreSession
         {
             // Don't close the transaction !!!
             LOG.debug( "Search done, the transaction is still opened" );
-            /*
-            try
-            {
-                ( ( EntryFilteringCursor ) cursor ).getOperationContext().getTransaction().close();
-            }
-            catch ( IOException ioe )
-            {
-                done.addAllControls( searchContext.getResponseControls() );
-                
-                throw new LdapOtherException( ioe.getMessage(), ioe );
-            }
-            */
         }
 
         if ( sortRespCtrl != null )
@@ -1288,7 +1302,7 @@ public class DefaultCoreSession implements CoreSession
      */
     private SortResponse canSort( SortRequest sortControl, LdapResult ldapResult, SchemaManager schemaManager )
     {
-        SortResponse resp = new SortResponseControlImpl();
+        SortResponse resp = new SortResponseImpl();
 
         List<SortKey> keys = sortControl.getSortKeys();
 
@@ -1420,7 +1434,7 @@ public class DefaultCoreSession implements CoreSession
         
         try 
         {
-            file = File.createTempFile( "replica", ".sorted-data" );    // see DIRSERVER-2007
+            file = Files.createTempFile( "replica", ".sorted-data" ).toFile();    // see DIRSERVER-2007
         } 
         catch ( IOException e ) 
         {
@@ -1469,5 +1483,75 @@ public class DefaultCoreSession implements CoreSession
     public void setPwdMustChange( boolean pwdMustChange ) 
     {
         this.pwdMustChange = pwdMustChange;
+    }
+
+    
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean hasSessionTransaction()
+    {
+        return hasSessionTransaction;
+    }
+    
+    
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long beginSessionTransaction()
+    {
+        hasSessionTransaction = true;
+        
+        return transactionId.getAndIncrement();
+    }
+    
+    
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void endSessionTransaction( boolean commit ) throws IOException
+    {
+        if ( commit )
+        {
+            for ( Map.Entry<String, PartitionTxn> partitionTxn : transactionMap.entrySet() )
+            {
+                partitionTxn.getValue().commit();
+            }
+        }
+        else
+        {
+            for ( Map.Entry<String, PartitionTxn> partitionTxn : transactionMap.entrySet() )
+            {
+                partitionTxn.getValue().abort();
+            }
+        }
+        
+        hasSessionTransaction = false;
+    }
+
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public PartitionTxn getTransaction( Partition partition ) 
+    {
+        return transactionMap.get( partition.getId() );
+    }
+
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void addTransaction( Partition partition, PartitionTxn transaction )
+    {
+        if ( !transactionMap.containsKey( partition.getId() ) )
+        {
+            transactionMap.put( partition.getId(), transaction );
+        }
     }
 }

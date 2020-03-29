@@ -86,6 +86,8 @@ public abstract class AbstractOperationContext implements OperationContext
 
     /**
      * Creates a new instance of AbstractOperationContext.
+     * 
+     * @param session The session to use
      */
     public AbstractOperationContext( CoreSession session )
     {
@@ -97,6 +99,7 @@ public abstract class AbstractOperationContext implements OperationContext
     /**
      * Creates a new instance of AbstractOperationContext.
      *
+     * @param session The session to use
      * @param dn The associated Dn
      */
     public AbstractOperationContext( CoreSession session, Dn dn )
@@ -285,13 +288,6 @@ public abstract class AbstractOperationContext implements OperationContext
     {
         this.requestControls = requestControls;
     }
-
-
-    /**
-     * @return the operation name
-     */
-    @Override
-    public abstract String getName();
 
 
     /**

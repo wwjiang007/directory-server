@@ -32,6 +32,7 @@ import org.apache.directory.api.ldap.model.message.CompareRequestImpl;
 import org.apache.directory.api.ldap.model.message.CompareResponse;
 import org.apache.directory.api.ldap.model.message.ResultCodeEnum;
 import org.apache.directory.api.ldap.model.name.Dn;
+import org.apache.directory.api.util.Strings;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.future.CompareFuture;
 import org.apache.directory.server.annotations.CreateLdapServer;
@@ -83,7 +84,8 @@ public class ClientCompareRequestTest extends AbstractLdapTestUnit
         boolean response = connection.compare( dn, SchemaConstants.UID_AT, "admin" );
         assertTrue( response );
 
-        response = connection.compare( dn.getName(), SchemaConstants.USER_PASSWORD_AT, "secret".getBytes() );
+        response = connection.compare( dn.getName(), SchemaConstants.USER_PASSWORD_AT,
+            Strings.getBytesUtf8( "secret" ) );
         assertNotNull( response );
         assertTrue( response );
     }

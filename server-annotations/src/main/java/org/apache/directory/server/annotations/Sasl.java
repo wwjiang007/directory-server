@@ -30,6 +30,7 @@ import java.lang.annotation.Target;
 import org.apache.directory.server.ldap.handlers.sasl.SimpleMechanismHandler;
 import org.apache.directory.server.ldap.handlers.sasl.cramMD5.CramMd5MechanismHandler;
 import org.apache.directory.server.ldap.handlers.sasl.digestMD5.DigestMd5MechanismHandler;
+import org.apache.directory.server.ldap.handlers.sasl.external.certificate.CertificateMechanismHandler;
 import org.apache.directory.server.ldap.handlers.sasl.gssapi.GssapiMechanismHandler;
 import org.apache.directory.server.ldap.handlers.sasl.ntlm.NtlmMechanismHandler;
 
@@ -52,31 +53,32 @@ import org.apache.directory.server.ldap.handlers.sasl.ntlm.NtlmMechanismHandler;
     { ElementType.METHOD, ElementType.TYPE })
 public @interface Sasl
 {
-    /** The SASL host, default to "" */
+    /** @return The SASL host, default to "" */
     String host() default "";
 
 
-    /** The principal */
+    /** @return The principal */
     String principal();
 
 
-    /** The SASL QOP list */
+    /** @return The SASL QOP list */
     String[] qop() default
         { "auth", "auth-int", "auth-conf" };
 
 
-    /** The SASL realms */
+    /** @return The SASL realms */
     String[] realms() default
         {};
 
 
-    /** The mechanism handlers.*/
+    /** @return The mechanism handlers.*/
     Class<?>[] mechanismHandler() default
         {
             SimpleMechanismHandler.class,
             CramMd5MechanismHandler.class,
             DigestMd5MechanismHandler.class,
             GssapiMechanismHandler.class,
-            NtlmMechanismHandler.class
+            NtlmMechanismHandler.class,
+            CertificateMechanismHandler.class
     };
 }

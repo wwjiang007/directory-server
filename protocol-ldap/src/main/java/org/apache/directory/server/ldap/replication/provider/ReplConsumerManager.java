@@ -148,7 +148,7 @@ public class ReplConsumerManager
             return;
         }
 
-        PROVIDER_LOG.debug( "Adding a consumer for replica {}", replica.toString() );
+        PROVIDER_LOG.debug( "Adding a consumer for replica {}", replica );
 
         // Check that we don't already have an entry for this consumer
         Dn consumerDn = directoryService.getDnFactory().create(
@@ -188,7 +188,7 @@ public class ReplConsumerManager
      * Delete an existing consumer entry from ou=consumers,ou=system
      * 
      * @param replica The added consumer replica
-     * @throws Exception If the addition failed
+     * @throws LdapException If the addition failed
      */
     public void deleteConsumerEntry( ReplicaEventLog replica ) throws LdapException
     {

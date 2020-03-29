@@ -55,8 +55,8 @@ public class KeyTupleBTreeCursor<K, V> extends AbstractCursor<Tuple<K, V>>
     private final BTree btree;
     private final K key;
 
-    private jdbm.helper.Tuple<K, V> valueTuple = new jdbm.helper.Tuple<K, V>();
-    private Tuple<K, V> returnedTuple = new Tuple<K, V>();
+    private jdbm.helper.Tuple<K, V> valueTuple = new jdbm.helper.Tuple<>();
+    private Tuple<K, V> returnedTuple = new Tuple<>();
     private TupleBrowser<K, V> browser;
     private boolean valueAvailable;
 
@@ -67,7 +67,7 @@ public class KeyTupleBTreeCursor<K, V> extends AbstractCursor<Tuple<K, V>>
      * @param btree the JDBM BTree to build a Cursor over
      * @param key the constant key for which values are returned
      * @param comparator the Comparator used to determine <b>key</b> ordering
-     * @throws Exception of there are problems accessing the BTree
+     * @throws IOException of there are problems accessing the BTree
      */
     public KeyTupleBTreeCursor( BTree btree, K key, Comparator<V> comparator ) throws IOException
     {
@@ -135,7 +135,7 @@ public class KeyTupleBTreeCursor<K, V> extends AbstractCursor<Tuple<K, V>>
      * {@inheritDoc}
      */
     @SuppressWarnings("unchecked")
-    public void afterValue( K key, V value ) throws LdapException, CursorException
+    public void afterValue( K key, V value ) throws CursorException
     {
         if ( key != null && !key.equals( this.key ) )
         {
@@ -195,7 +195,8 @@ public class KeyTupleBTreeCursor<K, V> extends AbstractCursor<Tuple<K, V>>
      * all.
      *
      * @param element the valueTuple who's value is used to position this Cursor
-     * @throws Exception if there are failures to position the Cursor
+     * @throws LdapException if there are failures to position the Cursor
+     * @throws CursorException if there are failures to position the Cursor
      */
     public void before( Tuple<K, V> element ) throws LdapException, CursorException
     {
@@ -215,7 +216,7 @@ public class KeyTupleBTreeCursor<K, V> extends AbstractCursor<Tuple<K, V>>
     /**
      * {@inheritDoc}
      */
-    public void after( Tuple<K, V> element ) throws LdapException, CursorException
+    public void after( Tuple<K, V> element ) throws CursorException
     {
         afterValue( key, element.getValue() );
     }

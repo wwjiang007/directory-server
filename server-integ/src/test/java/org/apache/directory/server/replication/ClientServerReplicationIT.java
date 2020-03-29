@@ -30,6 +30,10 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.directory.api.ldap.codec.api.LdapApiService;
+import org.apache.directory.api.ldap.extras.controls.syncrepl_impl.SyncDoneValueFactory;
+import org.apache.directory.api.ldap.extras.controls.syncrepl_impl.SyncRequestValueFactory;
+import org.apache.directory.api.ldap.extras.controls.syncrepl_impl.SyncStateValueFactory;
 import org.apache.directory.api.ldap.model.constants.SchemaConstants;
 import org.apache.directory.api.ldap.model.csn.Csn;
 import org.apache.directory.api.ldap.model.cursor.Cursor;
@@ -534,7 +538,7 @@ public class ClientServerReplicationIT
 
     @CreateDS(
         allowAnonAccess = true,
-        name = "provider-replication",
+        name = "ClientServerReplicationIT-provider-replication",
         enableChangeLog = false,
         partitions =
             {
@@ -557,6 +561,12 @@ public class ClientServerReplicationIT
     public static void startProvider( final CountDownLatch counter ) throws Exception
     {
         DirectoryService provDirService = DSAnnotationProcessor.getDirectoryService();
+
+        // Load the replication controls
+        LdapApiService codec = provDirService.getLdapCodecService();
+        codec.registerRequestControl( new SyncRequestValueFactory( codec ) );
+        codec.registerResponseControl( new SyncDoneValueFactory( codec ) );
+        codec.registerResponseControl( new SyncStateValueFactory( codec ) );
 
         providerServer = ServerAnnotationProcessor.getLdapServer( provDirService );
         providerServer.setReplicationReqHandler( new SyncReplRequestHandler() );
@@ -590,7 +600,7 @@ public class ClientServerReplicationIT
     @CreateDS(
         allowAnonAccess = true,
         enableChangeLog = false,
-        name = "consumer-replication",
+        name = "ClientServerReplicationIT-consumer-replication",
         partitions =
             {
                 @CreatePartition(

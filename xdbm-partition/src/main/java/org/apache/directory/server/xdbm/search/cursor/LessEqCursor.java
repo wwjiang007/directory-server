@@ -76,6 +76,15 @@ public class LessEqCursor<V> extends AbstractIndexCursor<V>
     private IndexEntry<String, String> uuidCandidate;
 
 
+    /**
+     * Creates a new instance of an LessEqCursor
+     * 
+     * @param partitionTxn The transaction to use
+     * @param store The store
+     * @param lessEqEvaluator The LessEqEvaluator
+     * @throws LdapException If the creation failed
+     * @throws IndexNotFoundException If the index was not found
+     */
     @SuppressWarnings("unchecked")
     public LessEqCursor( PartitionTxn partitionTxn, Store store, LessEqEvaluator<V> lessEqEvaluator ) 
         throws LdapException, IndexNotFoundException
@@ -136,7 +145,7 @@ public class LessEqCursor<V> extends AbstractIndexCursor<V>
              * before() method of the userIdxCursor.
              */
             int compareValue = lessEqEvaluator.getComparator().compare( element.getKey(),
-                lessEqEvaluator.getExpression().getValue().getValue() );
+                lessEqEvaluator.getExpression().getValue().getString() );
 
             if ( compareValue > 0 )
             {
@@ -172,7 +181,7 @@ public class LessEqCursor<V> extends AbstractIndexCursor<V>
         if ( userIdxCursor != null )
         {
             int comparedValue = lessEqEvaluator.getComparator().compare( element.getKey(),
-                lessEqEvaluator.getExpression().getValue().getValue() );
+                lessEqEvaluator.getExpression().getValue().getString() );
 
             /*
              * First we need to check and make sure this element is within
@@ -235,7 +244,7 @@ public class LessEqCursor<V> extends AbstractIndexCursor<V>
             IndexEntry<V, String> advanceTo = new IndexEntry<>();
             //noinspection unchecked
             String normalizedKey = lessEqEvaluator.getAttributeType().getEquality().getNormalizer().normalize( 
-                lessEqEvaluator.getExpression().getValue().getValue() );
+                lessEqEvaluator.getExpression().getValue().getString() );
             
             advanceTo.setKey( ( V ) normalizedKey );
             userIdxCursor.after( advanceTo );
@@ -274,6 +283,7 @@ public class LessEqCursor<V> extends AbstractIndexCursor<V>
     /**
      * {@inheritDoc}
      */
+    @Override
     public boolean previous() throws LdapException, CursorException
     {
         checkNotClosed();
@@ -310,6 +320,7 @@ public class LessEqCursor<V> extends AbstractIndexCursor<V>
     /**
      * {@inheritDoc}
      */
+    @Override
     public boolean next() throws LdapException, CursorException
     {
         checkNotClosed();
@@ -328,7 +339,7 @@ public class LessEqCursor<V> extends AbstractIndexCursor<V>
                 IndexEntry<?, String> candidate = userIdxCursor.get();
 
                 if ( lessEqEvaluator.getComparator().compare( candidate.getKey(),
-                    lessEqEvaluator.getExpression().getValue().getValue() ) <= 0 )
+                    lessEqEvaluator.getExpression().getValue().getString() ) <= 0 )
                 {
                     return setAvailable( true );
                 }

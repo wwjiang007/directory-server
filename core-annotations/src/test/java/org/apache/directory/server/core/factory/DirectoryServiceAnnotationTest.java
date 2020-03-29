@@ -28,8 +28,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.directory.api.ldap.model.constants.AuthenticationLevel;
+import org.apache.directory.api.ldap.model.exception.LdapException;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.util.FileUtils;
+import org.apache.directory.api.util.Strings;
 import org.apache.directory.server.core.annotations.ContextEntry;
 import org.apache.directory.server.core.annotations.CreateAuthenticator;
 import org.apache.directory.server.core.annotations.CreateDS;
@@ -211,8 +213,8 @@ public class DirectoryServiceAnnotationTest
             "Expected the only interceptor to be the dummy interceptor",
             DummyAuthenticator.class,
             authenticators.iterator().next().getClass() );
-        service.getSession( new Dn( "uid=non-existant-user,ou=system" ), "wrong-password".getBytes() );
-        assertTrue( "Expedted dummy authenticator to have been invoked", dummyAuthenticatorCalled );
+        service.getSession( new Dn( "uid=non-existant-user,ou=system" ), Strings.getBytesUtf8( "wrong-password" ) );
+        assertTrue( "Expected dummy authenticator to have been invoked", dummyAuthenticatorCalled );
         service.shutdown();
         FileUtils.deleteDirectory( service.getInstanceLayout().getInstanceDirectory() );
     }
@@ -228,7 +230,7 @@ public class DirectoryServiceAnnotationTest
 
 
         @Override
-        public LdapPrincipal authenticate( BindOperationContext ctx ) throws Exception
+        public LdapPrincipal authenticate( BindOperationContext ctx ) throws LdapException
         {
             dummyAuthenticatorCalled = true;
             return new LdapPrincipal(

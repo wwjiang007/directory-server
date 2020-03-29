@@ -29,8 +29,8 @@ import java.io.StringReader;
 import java.lang.reflect.Method;
 import java.nio.channels.FileLock;
 import java.nio.channels.OverlappingFileLockException;
+import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +65,7 @@ import org.apache.directory.api.ldap.model.name.DnUtils;
 import org.apache.directory.api.ldap.model.name.Rdn;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.util.tree.DnNode;
+import org.apache.directory.api.util.TimeProvider;
 import org.apache.directory.api.util.DateUtils;
 import org.apache.directory.api.util.Strings;
 import org.apache.directory.api.util.exception.NotImplementedException;
@@ -72,7 +73,6 @@ import org.apache.directory.server.constants.ApacheSchemaConstants;
 import org.apache.directory.server.constants.ServerDNConstants;
 import org.apache.directory.server.core.admin.AdministrativePointInterceptor;
 import org.apache.directory.server.core.api.AttributeTypeProvider;
-import org.apache.directory.server.core.api.CacheService;
 import org.apache.directory.server.core.api.CoreSession;
 import org.apache.directory.server.core.api.DirectoryService;
 import org.apache.directory.server.core.api.DnFactory;
@@ -121,7 +121,6 @@ import org.apache.directory.server.core.normalization.NormalizationInterceptor;
 import org.apache.directory.server.core.operational.OperationalAttributeInterceptor;
 import org.apache.directory.server.core.referral.ReferralInterceptor;
 import org.apache.directory.server.core.schema.SchemaInterceptor;
-import org.apache.directory.server.core.security.TlsKeyGenerator;
 import org.apache.directory.server.core.shared.DefaultCoreSession;
 import org.apache.directory.server.core.shared.DefaultDnFactory;
 import org.apache.directory.server.core.shared.partition.DefaultPartitionNexus;
@@ -202,9 +201,6 @@ public class DefaultDirectoryService implements DirectoryService
     /** The default delay to wait between sync on disk : 15 seconds */
     private static final long DEFAULT_SYNC_PERIOD = 15000;
 
-    /** */
-    private Thread workerThread;
-
     /** The default timeLimit : 100 entries */
     public static final int MAX_SIZE_LIMIT_DEFAULT = 100;
 
@@ -270,9 +266,6 @@ public class DefaultDirectoryService implements DirectoryService
 
     private static final String LOCK_FILE_NAME = ".dirservice.lock";
 
-    /** the ehcache based cache service */
-    private CacheService cacheService;
-
     /** The AccessControl AdministrativePoint cache */
     private DnNode<AccessControlAdministrativePoint> accessControlAPCache;
 
@@ -299,6 +292,8 @@ public class DefaultDirectoryService implements DirectoryService
 
     /** The object class provider */
     private ObjectClassProvider ocProvider;
+    
+    private TimeProvider timeProvider;
 
 
     // ------------------------------------------------------------------------
@@ -307,8 +302,10 @@ public class DefaultDirectoryService implements DirectoryService
 
     /**
      * Creates a new instance of the directory service.
+     * 
+     * @throws LdapException If the instance cannot be created
      */
-    public DefaultDirectoryService() throws Exception
+    public DefaultDirectoryService() throws LdapException
     {
         changeLog = new DefaultChangeLog();
         journal = new DefaultJournal();
@@ -316,6 +313,7 @@ public class DefaultDirectoryService implements DirectoryService
         csnFactory = new CsnFactory( replicaId );
         evaluator = new SubtreeEvaluator( schemaManager );
         setDefaultInterceptorConfigurations();
+        timeProvider = TimeProvider.DEFAULT;
     }
 
 
@@ -528,24 +526,10 @@ public class DefaultDirectoryService implements DirectoryService
         for ( Method method : methods )
         {
             Class<?>[] param = method.getParameterTypes();
-            boolean hasCorrestSig;
 
             // check for the correct signature
-            if ( ( param == null ) || ( param.length > 1 ) || ( param.length == 0 ) )
-            {
-                continue;
-            }
-
-            if ( OperationContext.class.isAssignableFrom( param[0] ) )
-            {
-                hasCorrestSig = true;
-            }
-            else
-            {
-                continue;
-            }
-
-            if ( hasCorrestSig && method.getName().equals( operation.getMethodName() ) )
+            if ( ( param != null ) && ( param.length == 1 ) 
+                    && OperationContext.class.isAssignableFrom( param[0] ) && method.getName().equals( operation.getMethodName() ) )
             {
                 if ( !selectedInterceptorList.contains( interceptor.getName() ) )
                 {
@@ -711,8 +695,7 @@ public class DefaultDirectoryService implements DirectoryService
 
 
     /**
-     * Sets test directory entries({@link Attributes}) to be loaded while
-     * bootstrapping.
+     * Sets test directory entries to be loaded while bootstrapping.
      *
      * @param testEntries the test entries to load while bootstrapping
      */
@@ -742,49 +725,34 @@ public class DefaultDirectoryService implements DirectoryService
         this.instanceLayout = instanceLayout;
 
         // Create the directories if they are missing
-        if ( !instanceLayout.getInstanceDirectory().exists() )
+        if ( !instanceLayout.getInstanceDirectory().exists() && !instanceLayout.getInstanceDirectory().mkdirs() )
         {
-            if ( !instanceLayout.getInstanceDirectory().mkdirs() )
-            {
-                throw new IOException( I18n.err( I18n.ERR_112_COULD_NOT_CREATE_DIRECTORY,
-                    instanceLayout.getInstanceDirectory() ) );
-            }
+            throw new IOException( I18n.err( I18n.ERR_112_COULD_NOT_CREATE_DIRECTORY,
+                instanceLayout.getInstanceDirectory() ) );
         }
 
-        if ( !instanceLayout.getLogDirectory().exists() )
+        if ( !instanceLayout.getLogDirectory().exists() && !instanceLayout.getLogDirectory().mkdirs() )
         {
-            if ( !instanceLayout.getLogDirectory().mkdirs() )
-            {
-                throw new IOException( I18n.err( I18n.ERR_112_COULD_NOT_CREATE_DIRECTORY,
-                    instanceLayout.getLogDirectory() ) );
-            }
+            throw new IOException( I18n.err( I18n.ERR_112_COULD_NOT_CREATE_DIRECTORY,
+                instanceLayout.getLogDirectory() ) );
         }
 
-        if ( !instanceLayout.getRunDirectory().exists() )
+        if ( !instanceLayout.getRunDirectory().exists() && !instanceLayout.getRunDirectory().mkdirs() )
         {
-            if ( !instanceLayout.getRunDirectory().mkdirs() )
-            {
-                throw new IOException( I18n.err( I18n.ERR_112_COULD_NOT_CREATE_DIRECTORY,
-                    instanceLayout.getRunDirectory() ) );
-            }
+            throw new IOException( I18n.err( I18n.ERR_112_COULD_NOT_CREATE_DIRECTORY,
+                instanceLayout.getRunDirectory() ) );
         }
 
-        if ( !instanceLayout.getPartitionsDirectory().exists() )
+        if ( !instanceLayout.getPartitionsDirectory().exists() && !instanceLayout.getPartitionsDirectory().mkdirs() )
         {
-            if ( !instanceLayout.getPartitionsDirectory().mkdirs() )
-            {
-                throw new IOException( I18n.err( I18n.ERR_112_COULD_NOT_CREATE_DIRECTORY,
-                    instanceLayout.getPartitionsDirectory() ) );
-            }
+            throw new IOException( I18n.err( I18n.ERR_112_COULD_NOT_CREATE_DIRECTORY,
+                instanceLayout.getPartitionsDirectory() ) );
         }
 
-        if ( !instanceLayout.getConfDirectory().exists() )
+        if ( !instanceLayout.getConfDirectory().exists() && !instanceLayout.getConfDirectory().mkdirs() )
         {
-            if ( !instanceLayout.getConfDirectory().mkdirs() )
-            {
-                throw new IOException( I18n.err( I18n.ERR_112_COULD_NOT_CREATE_DIRECTORY,
-                    instanceLayout.getConfDirectory() ) );
-            }
+            throw new IOException( I18n.err( I18n.ERR_112_COULD_NOT_CREATE_DIRECTORY,
+                instanceLayout.getConfDirectory() ) );
         }
     }
 
@@ -880,22 +848,17 @@ public class DefaultDirectoryService implements DirectoryService
     }
 
 
-    public void addPartition( Partition partition ) throws Exception
+    /**
+     * {@inheritDoc}
+     */
+    public void addPartition( Partition partition ) throws LdapException
     {
         partition.setSchemaManager( schemaManager );
 
-        try
+        // can be null when called before starting up
+        if ( partitionNexus != null )
         {
-            // can be null when called before starting up
-            if ( partitionNexus != null )
-            {
-                partitionNexus.addContextPartition( partition );
-            }
-        }
-        catch ( LdapException le )
-        {
-            // We've got an exception, we cannot add the partition to the partitions
-            throw le;
+            partitionNexus.addContextPartition( partition );
         }
 
         // Now, add the partition to the set of managed partitions
@@ -903,21 +866,16 @@ public class DefaultDirectoryService implements DirectoryService
     }
 
 
-    public void removePartition( Partition partition ) throws Exception
+    /**
+     * {@inheritDoc}
+     */
+    public void removePartition( Partition partition ) throws LdapException
     {
         // Do the backend cleanup first
-        try
+        // can be null when called before starting up
+        if ( partitionNexus != null )
         {
-            // can be null when called before starting up
-            if ( partitionNexus != null )
-            {
-                partitionNexus.removeContextPartition( partition.getSuffixDn().getNormName() );
-            }
-        }
-        catch ( LdapException le )
-        {
-            // Bad ! We can't go any further
-            throw le;
+            partitionNexus.removeContextPartition( partition.getSuffixDn().getNormName() );
         }
 
         // And update the set of managed partitions
@@ -1018,7 +976,7 @@ public class DefaultDirectoryService implements DirectoryService
      * Get back a session for a given user bound with SASL Bind
      */
     public CoreSession getSession( Dn principalDn, byte[] credentials, String saslMechanism, String saslAuthId )
-        throws Exception
+        throws LdapException
     {
         synchronized ( this )
         {
@@ -1156,6 +1114,10 @@ public class DefaultDirectoryService implements DirectoryService
          *
          * TODO review this code.
          */
+        PartitionTxn transaction = systemPartition.beginWriteTransaction();
+        // Speedup the addition by using a global transaction
+        adminSession.addTransaction( systemPartition, transaction );
+        adminSession.beginSessionTransaction();
 
         try
         {
@@ -1202,10 +1164,21 @@ public class DefaultDirectoryService implements DirectoryService
                             throw new NotImplementedException( I18n.err( I18n.ERR_76, reverse.getChangeType() ) );
                     }
                 }
+                
+                adminSession.endSessionTransaction( true );
             }
         }
         catch ( Exception e )
         {
+            try
+            {
+                adminSession.endSessionTransaction( false );
+            }
+            catch ( IOException ioe )
+            {
+                throw new LdapOperationException( ioe.getMessage(), ioe );
+            }
+            
             throw new LdapOperationException( e.getMessage(), e );
         }
         finally
@@ -1231,9 +1204,9 @@ public class DefaultDirectoryService implements DirectoryService
 
 
     /**
-     * @throws Exception if the LDAP server cannot be started
+     * @throws LdapException if the LDAP server cannot be started
      */
-    public synchronized void startup() throws Exception
+    public synchronized void startup() throws LdapException
     {
         if ( started )
         {
@@ -1280,7 +1253,7 @@ public class DefaultDirectoryService implements DirectoryService
     }
 
 
-    public synchronized void sync() throws Exception
+    public synchronized void sync() throws LdapException
     {
         if ( !started )
         {
@@ -1292,7 +1265,7 @@ public class DefaultDirectoryService implements DirectoryService
     }
 
 
-    public synchronized void shutdown() throws Exception
+    public synchronized void shutdown() throws LdapException
     {
         LOG.debug( "+++ DirectoryService Shutdown required" );
 
@@ -1347,9 +1320,6 @@ public class DefaultDirectoryService implements DirectoryService
         // --------------------------------------------------------------------
         // And shutdown the server
         // --------------------------------------------------------------------
-        LOG.debug( "--- Deleting the cache service" );
-        cacheService.destroy();
-
         LOG.debug( "---Deleting the DnCache" );
         dnFactory = null;
 
@@ -1510,9 +1480,9 @@ public class DefaultDirectoryService implements DirectoryService
      * had to be created, then we are not starting for the first time.
      *
      * @return true if the bootstrap entries had to be created, false otherwise
-     * @throws Exception if entries cannot be created
+     * @throws LdapException if entries cannot be created
      */
-    private boolean createBootstrapEntries() throws Exception
+    private boolean createBootstrapEntries() throws LdapException, IOException
     {
         boolean firstStart = false;
 
@@ -1549,13 +1519,11 @@ public class DefaultDirectoryService implements DirectoryService
                 serverEntry.put( SchemaConstants.CN_AT, "system administrator" );
                 serverEntry.put( SchemaConstants.SN_AT, "administrator" );
                 serverEntry.put( SchemaConstants.CREATORS_NAME_AT, ServerDNConstants.ADMIN_SYSTEM_DN_NORMALIZED );
-                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime() );
+                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime( getTimeProvider() ) );
                 serverEntry.put( SchemaConstants.DISPLAY_NAME_AT, "Directory Superuser" );
                 serverEntry.add( SchemaConstants.ENTRY_CSN_AT, getCSN().toString() );
                 serverEntry.add( SchemaConstants.ENTRY_UUID_AT, UUID.randomUUID().toString() );
     
-                TlsKeyGenerator.addKeyPair( serverEntry );
-                
                 addEntry( serverEntry );
             }
         }
@@ -1585,7 +1553,7 @@ public class DefaultDirectoryService implements DirectoryService
     
                 serverEntry.put( SchemaConstants.OU_AT, "users" );
                 serverEntry.put( SchemaConstants.CREATORS_NAME_AT, ServerDNConstants.ADMIN_SYSTEM_DN_NORMALIZED );
-                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime() );
+                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime( getTimeProvider() ) );
                 serverEntry.add( SchemaConstants.ENTRY_CSN_AT, getCSN().toString() );
                 serverEntry.add( SchemaConstants.ENTRY_UUID_AT, UUID.randomUUID().toString() );
                 
@@ -1618,7 +1586,7 @@ public class DefaultDirectoryService implements DirectoryService
     
                 serverEntry.put( SchemaConstants.OU_AT, "groups" );
                 serverEntry.put( SchemaConstants.CREATORS_NAME_AT, ServerDNConstants.ADMIN_SYSTEM_DN_NORMALIZED );
-                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime() );
+                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime( getTimeProvider() ) );
                 serverEntry.add( SchemaConstants.ENTRY_CSN_AT, getCSN().toString() );
                 serverEntry.add( SchemaConstants.ENTRY_UUID_AT, UUID.randomUUID().toString() );
     
@@ -1652,7 +1620,7 @@ public class DefaultDirectoryService implements DirectoryService
                 serverEntry.put( SchemaConstants.CN_AT, "Administrators" );
                 serverEntry.put( SchemaConstants.UNIQUE_MEMBER_AT, ServerDNConstants.ADMIN_SYSTEM_DN_NORMALIZED );
                 serverEntry.put( SchemaConstants.CREATORS_NAME_AT, ServerDNConstants.ADMIN_SYSTEM_DN_NORMALIZED );
-                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime() );
+                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime( getTimeProvider() ) );
                 serverEntry.add( SchemaConstants.ENTRY_CSN_AT, getCSN().toString() );
                 serverEntry.add( SchemaConstants.ENTRY_UUID_AT, UUID.randomUUID().toString() );
     
@@ -1683,7 +1651,7 @@ public class DefaultDirectoryService implements DirectoryService
     
                 serverEntry.put( SchemaConstants.OU_AT, "configuration" );
                 serverEntry.put( SchemaConstants.CREATORS_NAME_AT, ServerDNConstants.ADMIN_SYSTEM_DN_NORMALIZED );
-                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime() );
+                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime( getTimeProvider() ) );
                 serverEntry.add( SchemaConstants.ENTRY_CSN_AT, getCSN().toString() );
                 serverEntry.add( SchemaConstants.ENTRY_UUID_AT, UUID.randomUUID().toString() );
     
@@ -1713,7 +1681,7 @@ public class DefaultDirectoryService implements DirectoryService
                     SchemaConstants.ORGANIZATIONAL_UNIT_OC );
                 serverEntry.put( SchemaConstants.OU_AT, "partitions" );
                 serverEntry.put( SchemaConstants.CREATORS_NAME_AT, ServerDNConstants.ADMIN_SYSTEM_DN_NORMALIZED );
-                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime() );
+                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime( getTimeProvider() ) );
                 serverEntry.add( SchemaConstants.ENTRY_CSN_AT, getCSN().toString() );
                 serverEntry.add( SchemaConstants.ENTRY_UUID_AT, UUID.randomUUID().toString() );
     
@@ -1744,7 +1712,7 @@ public class DefaultDirectoryService implements DirectoryService
     
                 serverEntry.put( SchemaConstants.OU_AT, "services" );
                 serverEntry.put( SchemaConstants.CREATORS_NAME_AT, ServerDNConstants.ADMIN_SYSTEM_DN_NORMALIZED );
-                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime() );
+                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime( getTimeProvider() ) );
                 serverEntry.add( SchemaConstants.ENTRY_CSN_AT, getCSN().toString() );
                 serverEntry.add( SchemaConstants.ENTRY_UUID_AT, UUID.randomUUID().toString() );
     
@@ -1775,7 +1743,7 @@ public class DefaultDirectoryService implements DirectoryService
     
                 serverEntry.put( SchemaConstants.OU_AT, "interceptors" );
                 serverEntry.put( SchemaConstants.CREATORS_NAME_AT, ServerDNConstants.ADMIN_SYSTEM_DN_NORMALIZED );
-                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime() );
+                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime( getTimeProvider() ) );
                 serverEntry.add( SchemaConstants.ENTRY_CSN_AT, getCSN().toString() );
                 serverEntry.add( SchemaConstants.ENTRY_UUID_AT, UUID.randomUUID().toString() );
     
@@ -1808,7 +1776,7 @@ public class DefaultDirectoryService implements DirectoryService
     
                 serverEntry.put( "prefNodeName", "sysPrefRoot" );
                 serverEntry.put( SchemaConstants.CREATORS_NAME_AT, ServerDNConstants.ADMIN_SYSTEM_DN_NORMALIZED );
-                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime() );
+                serverEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime( getTimeProvider() ) );
                 serverEntry.add( SchemaConstants.ENTRY_CSN_AT, getCSN().toString() );
                 serverEntry.add( SchemaConstants.ENTRY_UUID_AT, UUID.randomUUID().toString() );
     
@@ -1822,17 +1790,17 @@ public class DefaultDirectoryService implements DirectoryService
 
     /**
      * Displays security warning messages if any possible secutiry issue is found.
-     * @throws Exception if there are failures parsing and accessing internal structures
+     * @throws LdapException if there are failures parsing and accessing internal structures
      */
     // made protected as per the request in DIRSERVER-1920
-    protected void showSecurityWarnings() throws Exception
+    protected void showSecurityWarnings() throws LdapException
     {
         // Warn if the default password is not changed.
         boolean needToChangeAdminPassword;
 
-        Dn adminDn = getDnFactory().create( ServerDNConstants.ADMIN_SYSTEM_DN );
-        Partition partition = partitionNexus.getPartition( adminDn );
-        LookupOperationContext lookupContext = new LookupOperationContext( adminSession, adminDn );
+        Dn admin = getDnFactory().create( ServerDNConstants.ADMIN_SYSTEM_DN );
+        Partition partition = partitionNexus.getPartition( admin );
+        LookupOperationContext lookupContext = new LookupOperationContext( adminSession, admin );
         lookupContext.setPartition( partition );
         
         Entry adminEntry;
@@ -1848,12 +1816,12 @@ public class DefaultDirectoryService implements DirectoryService
         }
         
         Value userPassword = adminEntry.get( SchemaConstants.USER_PASSWORD_AT ).get();
-        needToChangeAdminPassword = Arrays.equals( PartitionNexus.ADMIN_PASSWORD_BYTES, userPassword.getBytes() );
+        needToChangeAdminPassword = MessageDigest.isEqual( PartitionNexus.ADMIN_PASSWORD_BYTES, userPassword.getBytes() );
 
         if ( needToChangeAdminPassword )
         {
-            LOG.warn( "You didn't change the admin password of directory service " + "instance '" + instanceId + "'.  "
-                + "Please update the admin password as soon as possible " + "to prevent a possible security breach." );
+            LOG.warn( "You didn't change the admin password of directory service instance '{}'.  "
+                + "Please update the admin password as soon as possible to prevent a possible security breach.", instanceId );
         }
     }
 
@@ -1861,11 +1829,11 @@ public class DefaultDirectoryService implements DirectoryService
     /**
      * Adds test entries into the core.
      *
-     * @todo this may no longer be needed when JNDI is not used for bootstrapping
+     * TODO this may no longer be needed when JNDI is not used for bootstrapping
      *
-     * @throws Exception if the creation of test entries fails.
+     * @throws LdapException if the creation of test entries fails.
      */
-    private void createTestEntries() throws Exception
+    private void createTestEntries() throws LdapException
     {
         for ( LdifEntry testEntry : testEntries )
         {
@@ -1892,15 +1860,15 @@ public class DefaultDirectoryService implements DirectoryService
     }
 
 
-    private void initializeSystemPartition() throws Exception
+    private void initializeSystemPartition() throws LdapException, IOException
     {
         Partition system = getSystemPartition();
 
         // Add root context entry for system partition
         Dn systemSuffixDn = getDnFactory().create( ServerDNConstants.SYSTEM_DN );
-        CoreSession adminSession = getAdminSession();
+        CoreSession admin = getAdminSession();
 
-        HasEntryOperationContext hasEntryContext = new HasEntryOperationContext( adminSession, systemSuffixDn );
+        HasEntryOperationContext hasEntryContext = new HasEntryOperationContext( admin, systemSuffixDn );
         Partition partition = getPartitionNexus().getPartition( systemSuffixDn );
         hasEntryContext.setPartition( partition );
         
@@ -1918,13 +1886,13 @@ public class DefaultDirectoryService implements DirectoryService
     
                 // Add some operational attributes
                 systemEntry.put( SchemaConstants.CREATORS_NAME_AT, ServerDNConstants.ADMIN_SYSTEM_DN );
-                systemEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime() );
+                systemEntry.put( SchemaConstants.CREATE_TIMESTAMP_AT, DateUtils.getGeneralizedTime( getTimeProvider() ) );
                 systemEntry.add( SchemaConstants.ENTRY_CSN_AT, getCSN().toString() );
                 systemEntry.add( SchemaConstants.ENTRY_UUID_AT, UUID.randomUUID().toString() );
                 systemEntry.put( DnUtils.getRdnAttributeType( ServerDNConstants.SYSTEM_DN ), DnUtils
                     .getRdnValue( ServerDNConstants.SYSTEM_DN ) );
     
-                AddOperationContext addOperationContext = new AddOperationContext( adminSession, systemEntry );
+                AddOperationContext addOperationContext = new AddOperationContext( admin, systemEntry );
                 addOperationContext.setPartition( partition );
                 
                 PartitionTxn writeTxn = null;
@@ -1971,9 +1939,9 @@ public class DefaultDirectoryService implements DirectoryService
     /**
      * Kicks off the initialization of the entire system.
      *
-     * @throws Exception if there are problems along the way
+     * @throws LdapException if there are problems along the way
      */
-    private void initialize() throws Exception
+    private void initialize() throws LdapException
     {
         if ( LOG.isDebugEnabled() )
         {
@@ -1988,14 +1956,6 @@ public class DefaultDirectoryService implements DirectoryService
             setDefaultInterceptorConfigurations();
         }
 
-        if ( cacheService == null )
-        {
-            // Initialize a default cache service
-            cacheService = new CacheService();
-        }
-
-        cacheService.initialize( instanceLayout, instanceId );
-
         // Initialize the AP caches
         accessControlAPCache = new DnNode<>();
         collectiveAttributeAPCache = new DnNode<>();
@@ -2004,14 +1964,12 @@ public class DefaultDirectoryService implements DirectoryService
 
         if ( dnFactory == null )
         {
-            dnFactory = new DefaultDnFactory( schemaManager, cacheService.getCache( "dnCache" ) );
+            dnFactory = new DefaultDnFactory( schemaManager, 10000 );
         }
 
         // triggers partition to load schema fully from schema partition
-        schemaPartition.setCacheService( cacheService );
         schemaPartition.initialize();
         partitions.add( schemaPartition );
-        systemPartition.setCacheService( cacheService );
         
         if ( !systemPartition.getSuffixDn().isSchemaAware() )
         {
@@ -2022,18 +1980,32 @@ public class DefaultDirectoryService implements DirectoryService
         adminSession = new DefaultCoreSession( new LdapPrincipal( schemaManager, adminDn, AuthenticationLevel.STRONG ),
             this );
 
-        // @TODO - NOTE: Need to find a way to instantiate without dependency on DPN
+        // TODO - NOTE: Need to find a way to instantiate without dependency on DPN
         partitionNexus = new DefaultPartitionNexus( new DefaultEntry( schemaManager, Dn.ROOT_DSE ) );
         partitionNexus.setDirectoryService( this );
         partitionNexus.initialize();
 
-        initializeSystemPartition();
+        try
+        {
+            initializeSystemPartition();
+        }
+        catch ( IOException ioe )
+        {
+            throw new LdapException( ioe.getMessage(), ioe );
+        }
 
         // --------------------------------------------------------------------
         // Create all the bootstrap entries before initializing chain
         // --------------------------------------------------------------------
 
-        firstStart = createBootstrapEntries();
+        try
+        {
+            firstStart = createBootstrapEntries();
+        }
+        catch ( IOException ioe )
+        {
+            throw new LdapException( ioe.getMessage(), ioe );
+        }
 
         // initialize schema providers
         atProvider = new AttributeTypeProvider( schemaManager );
@@ -2079,8 +2051,6 @@ public class DefaultDirectoryService implements DirectoryService
      * @param text The ldif format file
      * @return An entry.
      */
-    // This will suppress PMD.EmptyCatchBlock warnings in this method
-    @SuppressWarnings("PMD.EmptyCatchBlock")
     private Entry readEntry( String text )
     {
         StringReader strIn = new StringReader( text );
@@ -2157,7 +2127,6 @@ public class DefaultDirectoryService implements DirectoryService
 
             entry.setDn( newDn );
 
-            // TODO Let's get rid of this Attributes crap
             return new DefaultEntry( schemaManager, entry );
         }
         catch ( Exception e )
@@ -2229,22 +2198,12 @@ public class DefaultDirectoryService implements DirectoryService
      */
     public Interceptor getInterceptor( String interceptorName )
     {
-        //readLock.lock();
-
-        //try
-        //{
-            return interceptorNames.get( interceptorName );
-        //}
-        //finally
-        //{
-            //readLock.unlock();
-        //}
+        return interceptorNames.get( interceptorName );
     }
 
 
     /**
      * {@inheritDoc}
-     * @throws LdapException
      */
     public void addFirst( Interceptor interceptor ) throws LdapException
     {
@@ -2254,7 +2213,6 @@ public class DefaultDirectoryService implements DirectoryService
 
     /**
      * {@inheritDoc}
-     * @throws LdapException
      */
     public void addLast( Interceptor interceptor ) throws LdapException
     {
@@ -2408,15 +2366,6 @@ public class DefaultDirectoryService implements DirectoryService
     /**
      * {@inheritDoc}
      */
-    public CacheService getCacheService()
-    {
-        return cacheService;
-    }
-
-
-    /**
-     * {@inheritDoc}
-     */
     public DnNode<AccessControlAdministrativePoint> getAccessControlAPCache()
     {
         return accessControlAPCache;
@@ -2510,15 +2459,6 @@ public class DefaultDirectoryService implements DirectoryService
     /**
      * {@inheritDoc}
      */
-    public void setCacheService( CacheService cacheService )
-    {
-        this.cacheService = cacheService;
-    }
-
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public AttributeTypeProvider getAtProvider()
     {
@@ -2535,4 +2475,23 @@ public class DefaultDirectoryService implements DirectoryService
         return ocProvider;
     }
 
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public TimeProvider getTimeProvider()
+    {
+        return timeProvider;
+    }
+
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setTimeProvider( TimeProvider timeProvider )
+    {
+        this.timeProvider = timeProvider;
+    }
 }

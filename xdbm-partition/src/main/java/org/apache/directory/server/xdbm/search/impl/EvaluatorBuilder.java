@@ -74,7 +74,6 @@ public class EvaluatorBuilder
      *
      * @param db the database this evaluator operates upon
      * @param schemaManager the schema manager
-     * @throws Exception failure to access db or lookup schema in registries
      */
     public EvaluatorBuilder( Store db, SchemaManager schemaManager )
     {
@@ -191,7 +190,7 @@ public class EvaluatorBuilder
 
     private List<Evaluator<? extends ExprNode>> buildList( PartitionTxn partitionTxn, List<ExprNode> children ) throws LdapException
     {
-        List<Evaluator<? extends ExprNode>> evaluators = new ArrayList<Evaluator<? extends ExprNode>>(
+        List<Evaluator<? extends ExprNode>> evaluators = new ArrayList<>(
             children.size() );
 
         for ( ExprNode child : children )

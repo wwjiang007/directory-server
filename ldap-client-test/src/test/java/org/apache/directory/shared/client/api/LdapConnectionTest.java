@@ -20,6 +20,10 @@
 package org.apache.directory.shared.client.api;
 
 
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -52,7 +56,6 @@ import org.apache.directory.server.core.integ.AbstractLdapTestUnit;
 import org.apache.directory.server.core.integ.FrameworkRunner;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -111,57 +114,45 @@ public class LdapConnectionTest extends AbstractLdapTestUnit
     }
 
 
+    /**
+     * Test for DIRAPI-342: Unbind breaks connection
+     */
     @Test
-    @Ignore
-    public void testRebindNoPool() throws Exception
+    public void testBindAndUnbindLoop() throws Exception
     {
-        LdapConnection connection = new LdapNetworkConnection( Network.LOOPBACK_HOSTNAME, getLdapServer().getPort() );
-        connection.bind( ServerDNConstants.ADMIN_SYSTEM_DN, "secret" );
-
-        for ( int i = 0; i < 10000; i++ )
+        try ( LdapConnection connection = new LdapNetworkConnection( Network.LOOPBACK_HOSTNAME,
+            getLdapServer().getPort() ) )
         {
-            if ( i % 100 == 0 )
+            for ( int i = 0; i < 100; i++ )
             {
-                System.out.println( "Iteration # " + i );
-            }
-            // First, unbind
-            try
-            {
+                connection.bind( "uid=admin,ou=system", "secret" );
+                assertTrue( connection.isAuthenticated() );
+
                 connection.unBind();
-            }
-            catch ( Exception e )
-            {
-                e.printStackTrace();
-                throw e;
-            }
-
-            //Thread.sleep( 5 );
-
-            // Don't close the connection, we want to reuse it
-            // Then bind again
-            try
-            {
-                connection.bind( ServerDNConstants.ADMIN_SYSTEM_DN, "secret" );
-            }
-            catch ( Exception e )
-            {
-                System.out.println( "Failure after " + i + " iterations" );
-                e.printStackTrace();
-                throw e;
+                assertFalse( connection.isAuthenticated() );
             }
         }
+    }
 
-        // terminate with an unbind
-        try
+
+    /**
+     * Test for DIRAPI-342: Unbind breaks connection
+     */
+    @Test
+    public void testBindAndCloseLoop() throws Exception
+    {
+        try ( LdapConnection connection = new LdapNetworkConnection( Network.LOOPBACK_HOSTNAME,
+            getLdapServer().getPort() ) )
         {
-            connection.unBind();
-        }
-        catch ( Exception e )
-        {
-            e.printStackTrace();
-        }
+            for ( int i = 0; i < 100; i++ )
+            {
+                connection.bind( "uid=admin,ou=system", "secret" );
+                assertTrue( connection.isAuthenticated() );
 
-        connection.close();
+                connection.close();
+                assertFalse( connection.isAuthenticated() );
+            }
+        }
     }
 
 
@@ -331,23 +322,39 @@ public void testLookup() throws Exception
     @Test(expected = InvalidConnectionException.class)
     public void testConnectionWrongHost() throws LdapException, IOException
     {
-        LdapConnection connection = new LdapNetworkConnection( "notexisting", 1234 );
-        connection.connect();
-
-        connection.close();
+        try ( LdapConnection connection = new LdapNetworkConnection( "notexisting", 1234 ) )
+        {
+            connection.setTimeOut( 10000L );
+            connection.connect();
+        }
+        catch ( Exception e )
+        {
+            assertThat( e, is( instanceOf( InvalidConnectionException.class ) ) );
+            assertThat( e.getMessage(), containsString( "ERR_04121_CANNOT_RESOLVE_HOSTNAME" ) );
+            assertThat( e.getMessage(), containsString( "notexisting" ) );
+            throw e;
+        }
     }
 
 
     @Test(expected = InvalidConnectionException.class)
     public void testConnectionWrongPort() throws LdapException, IOException
     {
-        LdapConnection connection = new LdapNetworkConnection( Network.LOOPBACK_HOSTNAME, 123 );
-        connection.connect();
-
-        connection.close();
+        try ( LdapConnection connection = new LdapNetworkConnection( Network.LOOPBACK_HOSTNAME, 123 ) )
+        {
+            connection.setTimeOut( 10000L );
+            connection.connect();
+        }
+        catch ( Exception e )
+        {
+            assertThat( e, is( instanceOf( InvalidConnectionException.class ) ) );
+            assertThat( e.getMessage(), containsString( "ERR_04110_CANNOT_CONNECT_TO_SERVER" ) );
+            assertThat( e.getMessage(), containsString( "Connection refused" ) );
+            throw e;
+        }
     }
-    
-    
+
+
     @Test
     public void testConfigSetting() throws LdapException, IOException
     {
@@ -356,4 +363,5 @@ public void testLookup() throws Exception
 
         connection.close();
     }
+
 }

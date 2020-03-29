@@ -36,6 +36,7 @@ import org.apache.directory.api.ldap.model.ldif.LdifEntry;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.util.tree.DnNode;
+import org.apache.directory.api.util.TimeProvider;
 import org.apache.directory.server.core.api.administrative.AccessControlAdministrativePoint;
 import org.apache.directory.server.core.api.administrative.CollectiveAttributeAdministrativePoint;
 import org.apache.directory.server.core.api.administrative.SubschemaAdministrativePoint;
@@ -476,12 +477,6 @@ public class MockDirectoryService implements DirectoryService
     }
 
 
-    public CacheService getCacheService()
-    {
-        return null;
-    }
-
-
     /**
      * {@inheritDoc}
      */
@@ -614,15 +609,6 @@ public class MockDirectoryService implements DirectoryService
     }
 
 
-    /**
-     * {@inheritDoc}
-     */
-    public void setCacheService( CacheService cacheService )
-    {
-        // nothing
-    }
-
-
     @Override
     public AttributeTypeProvider getAtProvider()
     {
@@ -634,5 +620,20 @@ public class MockDirectoryService implements DirectoryService
     public ObjectClassProvider getOcProvider()
     {
         return null;
+    }
+
+
+    @Override
+    public TimeProvider getTimeProvider()
+    {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+
+    @Override
+    public void setTimeProvider( TimeProvider timeProvider )
+    {
+        // TODO Auto-generated method stub
     }
 }

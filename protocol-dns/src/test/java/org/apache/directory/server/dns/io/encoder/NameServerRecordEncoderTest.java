@@ -61,13 +61,13 @@ public class NameServerRecordEncoderTest extends AbstractResourceRecordEncoderTe
     {
         expectedData.put( ( byte ) 19 );
         expectedData.put( ( byte ) nsParts[0].length() ); // 1
-        expectedData.put( nsParts[0].getBytes() ); // + 3
+        expectedData.put( Strings.getBytesUtf8( nsParts[0] ) ); // + 3
         expectedData.put( ( byte ) nsParts[1].length() ); // + 1
-        expectedData.put( nsParts[1].getBytes() ); // + 2
+        expectedData.put( Strings.getBytesUtf8( nsParts[1] ) ); // + 2
         expectedData.put( ( byte ) nsParts[2].length() ); // + 1
-        expectedData.put( nsParts[2].getBytes() ); // + 7
+        expectedData.put( Strings.getBytesUtf8( nsParts[2] ) ); // + 7
         expectedData.put( ( byte ) nsParts[3].length() ); // + 1
-        expectedData.put( nsParts[3].getBytes() ); // + 3
+        expectedData.put( Strings.getBytesUtf8( nsParts[3] ) ); // + 3
         expectedData.put( ( byte ) 0x00 ); // + 1 = 19
     }
 }

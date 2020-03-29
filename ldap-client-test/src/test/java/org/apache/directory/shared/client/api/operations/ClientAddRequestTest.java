@@ -51,6 +51,7 @@ import org.apache.directory.api.ldap.model.message.controls.ManageDsaITImpl;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.util.DateUtils;
 import org.apache.directory.api.util.Strings;
+import org.apache.directory.api.util.TimeProvider;
 import org.apache.directory.ldap.client.api.LdapNetworkConnection;
 import org.apache.directory.ldap.client.api.future.AddFuture;
 import org.apache.directory.server.annotations.CreateLdapServer;
@@ -237,7 +238,7 @@ public class ClientAddRequestTest extends AbstractLdapTestUnit
         String uuid = UUID.randomUUID().toString();
         String csn = new CsnFactory( 0 ).newInstance().toString();
         String creator = dn.getName();
-        String createdTime = DateUtils.getGeneralizedTime();
+        String createdTime = DateUtils.getGeneralizedTime( TimeProvider.DEFAULT );
 
         Entry entry = new DefaultEntry( dn );
         entry.add( SchemaConstants.OBJECT_CLASS_AT, SchemaConstants.PERSON_OC );
@@ -296,7 +297,7 @@ public class ClientAddRequestTest extends AbstractLdapTestUnit
         assertNotNull( loadedEntry );
         assertTrue( loadedEntry.containsAttribute( "cn" ) );
 
-        String cn = loadedEntry.get( "cn" ).get().getValue();
+        String cn = loadedEntry.get( "cn" ).get().getString();
 
         assertEquals( "a+B", cn );
     }
@@ -322,7 +323,7 @@ public class ClientAddRequestTest extends AbstractLdapTestUnit
         assertNotNull( loadedEntry );
         assertTrue( loadedEntry.containsAttribute( "cn" ) );
 
-        String cn = loadedEntry.get( "cn" ).get().getValue();
+        String cn = loadedEntry.get( "cn" ).get().getString();
 
         assertEquals( "a+b", cn );
     }
@@ -356,7 +357,7 @@ public class ClientAddRequestTest extends AbstractLdapTestUnit
 
         for ( Value value : attribute )
         {
-            String val = value.getValue();
+            String val = value.getString();
 
             assertTrue( expected.contains( val ) );
             count++;
@@ -375,7 +376,6 @@ public class ClientAddRequestTest extends AbstractLdapTestUnit
     @Test
     public void testPreserveRdnUpName() throws Exception
     {
-        connection.setTimeOut( 0L );
         Dn dn = new Dn( getService().getSchemaManager(), "cn=testadd,ou=system" );
         Entry entry = new DefaultEntry( dn,
             "ObjectClass: person",
@@ -397,7 +397,6 @@ public class ClientAddRequestTest extends AbstractLdapTestUnit
     @Test
     public void testAddNullValueSchemaAware() throws LdapException, IOException
     {
-        connection.setTimeOut( 0L );
         connection.loadSchema();
 
         // Use the client API
@@ -429,6 +428,39 @@ public class ClientAddRequestTest extends AbstractLdapTestUnit
         assertTrue( Strings.isEmpty( userPassword ) );
         assertTrue( Strings.isEmpty( mail ) );
 
+        connection.close();
+    }
+
+
+    @Test
+    public void testAddUidWithDash() throws LdapException, IOException
+    {
+        connection.setTimeOut( 0L );
+        connection.loadSchema();
+
+        // Use the client API
+        connection.bind( "uid=admin,ou=system", "secret" );
+
+        // Add a new entry with some null values
+        Entry entry = new DefaultEntry( getLdapServer().getDirectoryService().getSchemaManager(), 
+            "uid=#4869,ou=system",
+            "objectclass: top",
+            "objectclass: person",
+            "objectclass: inetOrgPerson",
+            "uid: Hi",
+            "cn: Java Duke",
+            "sn: Duke", 
+            "userpassword: Password1" );
+
+        connection.add( entry );
+
+        // Now fetch the entry
+        Entry found = connection.lookup( "uid=#4869,ou=system" );
+
+        assertNotNull( found );
+        assertNotNull( found.get( "userPassword" ) );
+        assertTrue( found.contains( "uid", "Hi" ) );
+        
         connection.close();
     }
 }

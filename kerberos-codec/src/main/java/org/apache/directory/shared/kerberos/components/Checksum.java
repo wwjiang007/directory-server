@@ -22,6 +22,7 @@ package org.apache.directory.shared.kerberos.components;
 
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 import java.util.Arrays;
 
 import org.apache.directory.api.asn1.Asn1Object;
@@ -122,7 +123,7 @@ public class Checksum implements Asn1Object
 
         Checksum that = ( Checksum ) o;
 
-        return ( cksumtype == that.cksumtype ) && ( Arrays.equals( checksum, that.checksum ) );
+        return ( cksumtype == that.cksumtype ) && ( MessageDigest.isEqual( checksum, that.checksum ) );
     }
 
 
@@ -177,13 +178,13 @@ public class Checksum implements Asn1Object
      * 
      * 0x30 L1 checksum sequence
      *  |
-     *  +--> 0xA0 L2 cksumtype tag
+     *  +--&gt; 0xA0 L2 cksumtype tag
      *  |     |
-     *  |     +--> 0x02 L2-1 cksumtype (int)
+     *  |     +--&gt; 0x02 L2-1 cksumtype (int)
      *  |
-     *  +--> 0xA1 L3 checksum tag
+     *  +--&gt; 0xA1 L3 checksum tag
      *        |
-     *        +--> 0x04 L3-1 checksum (OCTET STRING)
+     *        +--&gt; 0x04 L3-1 checksum (OCTET STRING)
      *        
      *  where L1 = L2 + lenght(0xA0) + length(L2) +
      *             L3 + lenght(0xA1) + length(L3) 
@@ -211,10 +212,7 @@ public class Checksum implements Asn1Object
         checksumLength += 1 + TLV.getNbBytes( checksumBytesLength ) + checksumBytesLength;
 
         // Compute the whole sequence length
-        int checksumSeqLength = 1 + TLV.getNbBytes( checksumLength ) + checksumLength;
-
-        return checksumSeqLength;
-
+        return 1 + TLV.getNbBytes( checksumLength ) + checksumLength;
     }
 
 
@@ -267,7 +265,7 @@ public class Checksum implements Asn1Object
         if ( IS_DEBUG )
         {
             log.debug( "Checksum encoding : {}", Strings.dumpBytes( buffer.array() ) );
-            log.debug( "Checksum initial value : {}", toString() );
+            log.debug( "Checksum initial value : {}", this );
         }
 
         return buffer;

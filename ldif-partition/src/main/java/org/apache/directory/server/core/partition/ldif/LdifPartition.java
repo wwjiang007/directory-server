@@ -22,8 +22,10 @@ package org.apache.directory.server.core.partition.ldif;
 
 import java.io.File;
 import java.io.FileFilter;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
@@ -67,8 +69,10 @@ import org.slf4j.LoggerFactory;
 
 /**
  * A LDIF based partition. Data are stored on disk as LDIF, following this organization :
- * <li> each entry is associated with a file, post-fixed with LDIF
- * <li> each entry having at least one child will have a directory created using its name.
+ * <ul>
+ *   <li> each entry is associated with a file, post-fixed with LDIF
+ *   <li> each entry having at least one child will have a directory created using its name.
+ * </ul>
  * The root is the partition's suffix.
  * <br>
  * So for instance, we may have on disk :
@@ -76,10 +80,10 @@ import org.slf4j.LoggerFactory;
  * /ou=example,ou=system.ldif
  * /ou=example,ou=system/
  *   |
- *   +--> cn=test.ldif
+ *   +--&gt; cn=test.ldif
  *        cn=test/
  *           |
- *           +--> cn=another test.ldif
+ *           +--&gt; cn=another test.ldif
  *                ...
  * </pre>
  * <br><br>
@@ -128,6 +132,9 @@ public class LdifPartition extends AbstractLdifPartition
 
     /**
      * Creates a new instance of LdifPartition.
+     * 
+     * @param schemaManager The SchemaManager instance
+     * @param dnFactory The DN factory
      */
     public LdifPartition( SchemaManager schemaManager, DnFactory dnFactory )
     {
@@ -138,6 +145,7 @@ public class LdifPartition extends AbstractLdifPartition
     /**
      * {@inheritDoc}
      */
+    @Override
     protected void doInit() throws LdapException
     {
         if ( !initialized )
@@ -210,7 +218,7 @@ public class LdifPartition extends AbstractLdifPartition
                 }
 
                 // Initialization of the context entry
-                if ( ( suffixDn != null ) && ( contextEntry != null ) )
+                if ( suffixDn != null )
                 {
                     Dn contextEntryDn = contextEntry.getDn();
 
@@ -304,6 +312,7 @@ public class LdifPartition extends AbstractLdifPartition
     /**
      * {@inheritDoc}
      */
+    @Override
     public void add( AddOperationContext addContext ) throws LdapException
     {
         super.add( addContext );
@@ -315,6 +324,7 @@ public class LdifPartition extends AbstractLdifPartition
     /**
      * {@inheritDoc}
      */
+    @Override
     public Entry delete( PartitionTxn partitionTxn, String id ) throws LdapException
     {
         Entry deletedEntry = super.delete( partitionTxn, id );
@@ -345,6 +355,7 @@ public class LdifPartition extends AbstractLdifPartition
     /**
      * {@inheritDoc}
      */
+    @Override
     public void modify( ModifyOperationContext modifyContext ) throws LdapException
     {
         PartitionTxn partitionTxn = modifyContext.getTransaction();
@@ -371,11 +382,10 @@ public class LdifPartition extends AbstractLdifPartition
         Dn dn = modifyContext.getDn();
 
         // And write it back on disk
-        try
+        
+        try ( Writer fw = Files.newBufferedWriter( getFile( dn, DELETE ).toPath(), StandardCharsets.UTF_8 ) )
         {
-            FileWriter fw = new FileWriter( getFile( dn, DELETE ) );
             fw.write( LdifUtils.convertToLdif( modifiedEntry, true ) );
-            fw.close();
         }
         catch ( IOException ioe )
         {
@@ -387,6 +397,7 @@ public class LdifPartition extends AbstractLdifPartition
     /**
      * {@inheritDoc}
      */
+    @Override
     public void move( MoveOperationContext moveContext ) throws LdapException
     {
         PartitionTxn partitionTxn = moveContext.getTransaction();
@@ -439,6 +450,7 @@ public class LdifPartition extends AbstractLdifPartition
     /**
      * {@inheritDoc}
      */
+    @Override
     public void rename( RenameOperationContext renameContext ) throws LdapException
     {
         PartitionTxn partitionTxn = renameContext.getTransaction(); 
@@ -731,7 +743,7 @@ public class LdifPartition extends AbstractLdifPartition
             
             if ( at.getSyntax().isHumanReadable() )
             {
-                normValue = ava.getValue().getValue();
+                normValue = ava.getValue().getString();
             }
             else
             {
@@ -770,7 +782,7 @@ public class LdifPartition extends AbstractLdifPartition
             String atName = at.getName();
 
             // Now, get the normalized value
-            String normValue = rdn.getAva().getValue().getValue();
+            String normValue = rdn.getAva().getValue().getString();
 
             if ( isFirst )
             {
@@ -875,11 +887,9 @@ public class LdifPartition extends AbstractLdifPartition
         // Remove the EntryDN
         entry.removeAttributes( entryDnAT );
 
-        try
+        try ( Writer fw = Files.newBufferedWriter( getFile( entry.getDn(), CREATE ).toPath(), StandardCharsets.UTF_8 ) )
         {
-            FileWriter fw = new FileWriter( getFile( entry.getDn(), CREATE ) );
             fw.write( LdifUtils.convertToLdif( entry ) );
-            fw.close();
         }
         catch ( IOException ioe )
         {

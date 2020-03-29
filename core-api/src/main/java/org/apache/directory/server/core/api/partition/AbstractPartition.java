@@ -32,7 +32,6 @@ import org.apache.directory.api.ldap.model.exception.LdapOtherException;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.util.Strings;
-import org.apache.directory.server.core.api.CacheService;
 import org.apache.directory.server.core.api.DnFactory;
 import org.apache.directory.server.i18n.I18n;
 
@@ -63,9 +62,6 @@ public abstract class AbstractPartition implements Partition
 
     /** The root Dn for this partition */
     protected Dn suffixDn;
-
-    /** the cache service */
-    protected CacheService cacheService;
 
     /** the value of last successful add/update operation's CSN */
     private String contextCsn;
@@ -123,6 +119,9 @@ public abstract class AbstractPartition implements Partition
 
     /**
      * Override this method to put your initialization code.
+     * 
+     * @param partitionTxn The transaction to use
+     * @throws LdapException If the destroy call failed
      */
     protected abstract void doDestroy( PartitionTxn partitionTxn ) throws LdapException;
 
@@ -130,7 +129,8 @@ public abstract class AbstractPartition implements Partition
     /**
      * Override this method to put your initialization code.
      * 
-     * @throws Exception If teh init failed
+     * @throws LdapException If the initialization failed
+     * @throws InvalidNameException If the initialization failed
      */
     protected abstract void doInit() throws InvalidNameException, LdapException;
 
@@ -138,14 +138,14 @@ public abstract class AbstractPartition implements Partition
     /**
      * Override this method to implement a repair method
      * 
-     * @throws Exception If the repair failed
+     * @throws LdapException If the repair failed
      */
     protected abstract void doRepair() throws LdapException;
 
 
     /**
-     * Calls {@link #doDestroy()} where you have to put your destroy code in,
-     * and clears default properties.  Once this method is invoked, {@link #isInitialized()}
+     * Calls <code>doDestroy()</code> where you have to put your destroy code in,
+     * and clears default properties.  Once this method is invoked, <code>isInitialized()</code>
      * will return <tt>false</tt>.
      */
     @Override
@@ -254,7 +254,8 @@ public abstract class AbstractPartition implements Partition
 
     /**
      * Check that the operation is done on an initialized store
-     * @param property
+     * 
+     * @param property The property that was initialized
      */
     protected void checkInitialized( String property )
     {
@@ -283,16 +284,6 @@ public abstract class AbstractPartition implements Partition
     }
 
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setCacheService( CacheService cacheService )
-    {
-        this.cacheService = cacheService;
-    }
-
-    
     /**
      * {@inheritDoc}
      */

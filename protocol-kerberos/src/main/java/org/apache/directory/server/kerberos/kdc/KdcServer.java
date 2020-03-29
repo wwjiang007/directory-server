@@ -22,8 +22,6 @@ package org.apache.directory.server.kerberos.kdc;
 
 import java.io.IOException;
 
-import net.sf.ehcache.Cache;
-
 import org.apache.directory.api.ldap.model.exception.LdapInvalidDnException;
 import org.apache.directory.api.ldap.model.name.Dn;
 import org.apache.directory.server.kerberos.KerberosConfig;
@@ -40,6 +38,9 @@ import org.apache.mina.core.filterchain.DefaultIoFilterChainBuilder;
 import org.apache.mina.core.filterchain.IoFilterChainBuilder;
 import org.apache.mina.core.service.IoAcceptor;
 import org.apache.mina.filter.codec.ProtocolCodecFilter;
+import org.apache.mina.transport.socket.AbstractDatagramSessionConfig;
+import org.apache.mina.transport.socket.AbstractSocketSessionConfig;
+//import org.apache.mina.transport.socket.AbstractSocketSessionConfig;
 import org.apache.mina.transport.socket.nio.NioSocketAcceptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -111,8 +112,7 @@ public class KdcServer extends DirectoryBackedService
 
         LOG.debug( "initializing the kerberos replay cache" );
 
-        Cache cache = getDirectoryService().getCacheService().getCache( "kdcReplayCache" );
-        replayCache = new ReplayCacheImpl( cache, config.getAllowableClockSkew() );
+        replayCache = new ReplayCacheImpl( config.getAllowableClockSkew() );
 
         // Kerberos can use UDP or TCP
         for ( Transport transport : transports )
@@ -134,6 +134,16 @@ public class KdcServer extends DirectoryBackedService
 
                 // Allow the port to be reused even if the socket is in TIME_WAIT state
                 ( ( NioSocketAcceptor ) acceptor ).setReuseAddress( true );
+
+                // Set the buffer size to 32Kb, instead of 1Kb by default
+                ( ( AbstractSocketSessionConfig ) acceptor.getSessionConfig() ).setReadBufferSize( 32 * 1024 );
+                ( ( AbstractSocketSessionConfig ) acceptor.getSessionConfig() ).setSendBufferSize( 32 * 1024 );
+            }
+            else
+            {
+                // Set the buffer size to 32Kb, instead of 1Kb by default
+                ( ( AbstractDatagramSessionConfig ) acceptor.getSessionConfig() ).setReadBufferSize( 32 * 1024 );
+                ( ( AbstractDatagramSessionConfig ) acceptor.getSessionConfig() ).setSendBufferSize( 32 * 1024 );
             }
 
             // Inject the codec
@@ -145,6 +155,7 @@ public class KdcServer extends DirectoryBackedService
 
             // Inject the protocol handler
             acceptor.setHandler( new KerberosProtocolHandler( this, store ) );
+            
 
             // Bind to the configured address
             acceptor.bind();

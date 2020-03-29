@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.TimeZone;
 
 import javax.naming.NamingException;
@@ -240,7 +241,7 @@ public class SubschemaSubentryIT extends AbstractLdapTestUnit
 
         for ( Value value : attrTypes )
         {
-            String desc = value.getValue();
+            String desc = value.getString();
 
             if ( desc.indexOf( oid ) != -1 )
             {
@@ -402,7 +403,7 @@ public class SubschemaSubentryIT extends AbstractLdapTestUnit
 
         for ( Value value : attrTypes )
         {
-            String desc = value.getValue();
+            String desc = value.getString();
 
             if ( desc.indexOf( oid ) != -1 )
             {
@@ -548,7 +549,7 @@ public class SubschemaSubentryIT extends AbstractLdapTestUnit
 
         for ( Value value : attrTypes )
         {
-            String desc = value.getValue();
+            String desc = value.getString();
 
             if ( desc.indexOf( oid ) != -1 )
             {
@@ -696,7 +697,7 @@ public class SubschemaSubentryIT extends AbstractLdapTestUnit
 
         for ( Value value : attrTypes )
         {
-            String desc = value.getValue();
+            String desc = value.getString();
 
             if ( desc.indexOf( oid ) != -1 )
             {
@@ -858,7 +859,7 @@ public class SubschemaSubentryIT extends AbstractLdapTestUnit
 
         for ( Value value : attrTypes )
         {
-            String desc = value.getValue();
+            String desc = value.getString();
 
             if ( desc.indexOf( oid ) != -1 )
             {
@@ -1060,7 +1061,7 @@ public class SubschemaSubentryIT extends AbstractLdapTestUnit
 
         for ( Value value : attrTypes )
         {
-            String desc = value.getValue();
+            String desc = value.getString();
 
             if ( desc.indexOf( oid ) != -1 )
             {
@@ -1339,7 +1340,7 @@ public class SubschemaSubentryIT extends AbstractLdapTestUnit
 
         for ( Value value : attributeTypes )
         {
-            String desc = value.getValue();
+            String desc = value.getString();
 
             if ( desc.indexOf( "1.3.6.1.4.1.18060.0.4.0.2.10000" ) != -1 )
             {
@@ -1391,7 +1392,7 @@ public class SubschemaSubentryIT extends AbstractLdapTestUnit
 
         for ( Value value : attributeTypes )
         {
-            String desc = value.getValue();
+            String desc = value.getString();
 
             if ( desc.indexOf( "1.3.6.1.4.1.18060.0.4.0.2.10000" ) != -1 )
             {
@@ -1472,7 +1473,7 @@ public class SubschemaSubentryIT extends AbstractLdapTestUnit
 
         for ( Value value : attributeTypes )
         {
-            String desc = value.getValue();
+            String desc = value.getString();
 
             if ( desc.indexOf( "1.3.6.1.4.1.18060.0.4.0.2.10000" ) != -1 )
             {
@@ -1528,7 +1529,7 @@ public class SubschemaSubentryIT extends AbstractLdapTestUnit
 
         for ( Value value : attrTypes )
         {
-            String desc = value.getValue();
+            String desc = value.getString();
 
             if ( desc.indexOf( oid ) != -1 )
             {
@@ -1862,7 +1863,7 @@ public class SubschemaSubentryIT extends AbstractLdapTestUnit
         assertEquals( expectedDn.getName(), modifiersNameAttr.get() );
         assertNotNull( modifyTimestampAttr );
 
-        Calendar cal = Calendar.getInstance( tz );
+        Calendar cal = Calendar.getInstance( tz, Locale.ROOT );
         String modifyTimestampStr = modifyTimestampAttr.getString();
         Date modifyTimestamp = DateUtils.getDate( modifyTimestampStr );
         Date currentTimestamp = cal.getTime();
@@ -1894,7 +1895,7 @@ public class SubschemaSubentryIT extends AbstractLdapTestUnit
         assertEquals( expectedDn.getName(), modifiersNameAttrAfter.get() );
         assertNotNull( modifiersTimestampAttrAfter );
 
-        cal = Calendar.getInstance( tz );
+        cal = Calendar.getInstance( tz, Locale.ROOT );
         Date modifyTimestampAfter = DateUtils.getDate( modifiersTimestampAttrAfter.getString() );
         assertTrue( modifyTimestampAfter.getTime() <= cal.getTime().getTime() );
 

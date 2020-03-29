@@ -60,6 +60,6 @@ public class TextRecordEncoderTest extends AbstractResourceRecordEncoderTest
     {
         expectedData.put( ( byte ) ( characterString.length() + 1 ) );
         expectedData.put( ( byte ) characterString.length() );
-        expectedData.put( characterString.getBytes() );
+        expectedData.put( Strings.getBytesUtf8( characterString ) );
     }
 }

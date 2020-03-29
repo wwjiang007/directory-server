@@ -21,6 +21,7 @@ package org.apache.directory.server.kerberos.protocol.codec;
 
 
 import java.nio.ByteBuffer;
+import java.util.Locale;
 
 import org.apache.directory.api.asn1.DecoderException;
 import org.apache.directory.api.asn1.ber.Asn1Decoder;
@@ -43,9 +44,6 @@ public class MinaKerberosDecoder extends CumulativeProtocolDecoder
 {
     /** the key used while storing message container in the session */
     private static final String KERBEROS_MESSAGE_CONTAINER = "kerberosMessageContainer";
-
-    /** The ASN 1 decoder instance */
-    private Asn1Decoder asn1Decoder = new Asn1Decoder();
 
     private static final int DEFAULT_MAX_PDU_SIZE = 1024 * 7; // 7KB
     
@@ -86,7 +84,7 @@ public class MinaKerberosDecoder extends CumulativeProtocolDecoder
                         session.removeAttribute( KERBEROS_MESSAGE_CONTAINER );
                         
                         String err = "Request length %d exceeds allowed max PDU size %d";
-                        err = String.format( err, len, maxPduSize );
+                        err = String.format( Locale.ROOT, err, len, maxPduSize );
                         
                         throw new DecoderException( err );
                     }
@@ -119,7 +117,7 @@ public class MinaKerberosDecoder extends CumulativeProtocolDecoder
                 session.removeAttribute( KERBEROS_MESSAGE_CONTAINER );
                 
                 String err = "Total length of recieved bytes %d exceeds allowed max PDU size %d";
-                err = String.format( err, totLen, maxPduSize );
+                err = String.format( Locale.ROOT, err, totLen, maxPduSize );
                 
                 throw new DecoderException( err );
             }
@@ -144,13 +142,13 @@ public class MinaKerberosDecoder extends CumulativeProtocolDecoder
                 stream.flip();
             }
             
-            asn1Decoder.decode( stream, krbMsgContainer );
+            Asn1Decoder.decode( stream, krbMsgContainer );
             
             if ( krbMsgContainer.getState() == TLVStateEnum.PDU_DECODED )
             {
                 if ( IS_DEBUG )
                 {
-                    LOG_KRB.debug( "Decoded KerberosMessage : " + krbMsgContainer.getMessage() );
+                    LOG_KRB.debug( "Decoded KerberosMessage : {}", krbMsgContainer.getMessage() );
                     incomingBuf.mark();
                 }
                 

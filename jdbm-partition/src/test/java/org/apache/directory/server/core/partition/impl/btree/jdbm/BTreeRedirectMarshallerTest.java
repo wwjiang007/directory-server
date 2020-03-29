@@ -27,13 +27,15 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Random;
 
-import org.apache.commons.lang.ArrayUtils;
-import com.mycila.junit.concurrent.Concurrency;
-import com.mycila.junit.concurrent.ConcurrentJunitRunner;
+import org.apache.directory.api.util.Strings;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import com.mycila.junit.concurrent.Concurrency;
+import com.mycila.junit.concurrent.ConcurrentJunitRunner;
 
 
 /**
@@ -66,7 +68,7 @@ public class BTreeRedirectMarshallerTest
     {
         byte[] bites = createBites();
         assertEquals( 0, marshaller.deserialize( bites ).getRecId() );
-        assertTrue( ArrayUtils.isEquals( bites, marshaller.serialize( new BTreeRedirect( 0 ) ) ) );
+        assertTrue( Objects.deepEquals( bites, marshaller.serialize( new BTreeRedirect( 0 ) ) ) );
     }
 
 
@@ -76,7 +78,7 @@ public class BTreeRedirectMarshallerTest
         byte[] bites = createBites();
         bites[8] = 1;
         assertEquals( 1, marshaller.deserialize( bites ).getRecId() );
-        assertTrue( ArrayUtils.isEquals( bites, marshaller.serialize( new BTreeRedirect( 1 ) ) ) );
+        assertTrue( Objects.deepEquals( bites, marshaller.serialize( new BTreeRedirect( 1 ) ) ) );
     }
 
 
@@ -90,7 +92,7 @@ public class BTreeRedirectMarshallerTest
         }
 
         assertEquals( -1, marshaller.deserialize( bites ).getRecId() );
-        assertTrue( ArrayUtils.isEquals( bites, marshaller.serialize( new BTreeRedirect( -1 ) ) ) );
+        assertTrue( Objects.deepEquals( bites, marshaller.serialize( new BTreeRedirect( -1 ) ) ) );
     }
 
 
@@ -100,7 +102,7 @@ public class BTreeRedirectMarshallerTest
         byte[] bites = createBites();
         bites[1] = ( byte ) 0x80;
         assertEquals( Long.MIN_VALUE, marshaller.deserialize( bites ).getRecId() );
-        assertTrue( ArrayUtils.isEquals( bites, marshaller.serialize( new BTreeRedirect( Long.MIN_VALUE ) ) ) );
+        assertTrue( Objects.deepEquals( bites, marshaller.serialize( new BTreeRedirect( Long.MIN_VALUE ) ) ) );
     }
 
 
@@ -116,7 +118,7 @@ public class BTreeRedirectMarshallerTest
         }
 
         assertEquals( Long.MAX_VALUE, marshaller.deserialize( bites ).getRecId() );
-        assertTrue( ArrayUtils.isEquals( bites, marshaller.serialize( new BTreeRedirect( Long.MAX_VALUE ) ) ) );
+        assertTrue( Objects.deepEquals( bites, marshaller.serialize( new BTreeRedirect( Long.MAX_VALUE ) ) ) );
     }
 
 
@@ -151,7 +153,7 @@ public class BTreeRedirectMarshallerTest
 
         try
         {
-            marshaller.deserialize( "bogus".getBytes() );
+            marshaller.deserialize( Strings.getBytesUtf8( "bogus" ) );
             fail( "Should not get here." );
         }
         catch ( IOException e )

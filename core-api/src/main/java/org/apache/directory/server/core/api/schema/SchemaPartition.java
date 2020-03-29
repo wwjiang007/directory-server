@@ -44,7 +44,6 @@ import org.apache.directory.api.ldap.model.schema.SchemaManager;
 import org.apache.directory.api.ldap.model.schema.SchemaUtils;
 import org.apache.directory.api.util.DateUtils;
 import org.apache.directory.server.constants.ApacheSchemaConstants;
-import org.apache.directory.server.core.api.CacheService;
 import org.apache.directory.server.core.api.CoreSession;
 import org.apache.directory.server.core.api.filtering.EntryFilteringCursor;
 import org.apache.directory.server.core.api.interceptor.context.AddOperationContext;
@@ -101,12 +100,12 @@ import org.slf4j.LoggerFactory;
  *       Registries on initialization for the server.  That's one of it's core
  *       responsibilities.
  *   </li>
+ * </ol>
  * 
  * So by containing another Partition, we abstract the storage mechanism away
  * from the management responsibilities while decoupling the server from a
  * specific partition implementation and removing complexity in the Schema
  * interceptor service which before managed synchronization.
- * </ol>
  *
  * @author <a href="mailto:dev@directory.apache.org">Apache Directory Project</a>
  */
@@ -184,6 +183,7 @@ public final class SchemaPartition extends AbstractPartition
      * Has no affect: the id is fixed at {@link SchemaPartition#SCHEMA_ID}: 'schema'.
      * A warning is logged.
      */
+    @Override
     public void setId( String id )
     {
         LOG.warn( "This partition's ID is fixed: {}", SCHEMA_ID );
@@ -197,6 +197,7 @@ public final class SchemaPartition extends AbstractPartition
     /**
      * {@inheritDoc}
      */
+    @Override
     public void sync() throws LdapException
     {
         wrapped.sync();
@@ -231,7 +232,15 @@ public final class SchemaPartition extends AbstractPartition
 
             try
             {
+                // The schemaManager *must* be relaxed, otherwise disabled schema
+                // won't be loaded properly
+                schemaManager.setRelaxed();
+                
+                // Load the schemas
                 wrapped.initialize();
+                
+                // Now we can get the schemaManager back to strict mode
+                schemaManager.setStrict();
 
                 synchronizer = new RegistrySynchronizerAdaptor( schemaManager );
             }
@@ -516,9 +525,9 @@ public final class SchemaPartition extends AbstractPartition
     private void updateSchemaModificationAttributes( OperationContext opContext ) throws LdapException
     {
         String modifiersName = opContext.getSession().getEffectivePrincipal().getName();
-        String modifyTimestamp = DateUtils.getGeneralizedTime();
+        String modifyTimestamp = DateUtils.getGeneralizedTime( opContext.getSession().getDirectoryService().getTimeProvider() );
 
-        List<Modification> mods = new ArrayList<Modification>( 2 );
+        List<Modification> mods = new ArrayList<>( 2 );
 
         mods.add( new DefaultModification( ModificationOperation.REPLACE_ATTRIBUTE, new DefaultAttribute(
             ApacheSchemaConstants.SCHEMA_MODIFY_TIMESTAMP_AT, schemaManager
@@ -554,14 +563,6 @@ public final class SchemaPartition extends AbstractPartition
     }
 
 
-    @Override
-    public void setCacheService( CacheService cacheService )
-    {
-        super.setCacheService( cacheService );
-        wrapped.setCacheService( cacheService );
-    }
-
-
     /**
      * @see Object#toString()
      */
@@ -574,15 +575,14 @@ public final class SchemaPartition extends AbstractPartition
     /**
      * Return the number of children and subordinates for a given entry
      *
-     * @param dn The entry's DN
+     * @param partitionTxn The transaction
+     * @param entry The entry we want the subordinates for
      * @return The Subordinate instance that contains the values.
      * @throws LdapException If we had an issue while processing the request
      */
     public Subordinates getSubordinates( PartitionTxn partitionTxn, Entry entry ) throws LdapException
     {
-        Subordinates subordinates = new Subordinates();
-        
-        return subordinates;
+        return new Subordinates();
     }
 
 

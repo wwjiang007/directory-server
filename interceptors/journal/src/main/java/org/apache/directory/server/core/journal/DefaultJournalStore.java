@@ -22,9 +22,9 @@ package org.apache.directory.server.core.journal;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 
@@ -37,7 +37,9 @@ import org.apache.directory.server.core.api.journal.JournalStore;
 
 
 /**
- * @todo : Missing Javadoc
+ * The default Journal Store implementation. It creates a file on disk in which
+ * the logs will be appended.
+ *  
  * @author <a href="mailto:dev@directory.apache.org">Apache Directory Project</a>
 */
 public class DefaultJournalStore implements JournalStore
@@ -59,7 +61,7 @@ public class DefaultJournalStore implements JournalStore
      * {@inheritDoc}
      */
     @Override
-    public void destroy() throws Exception
+    public void destroy() throws IOException
     {
         if ( writer != null )
         {
@@ -72,7 +74,7 @@ public class DefaultJournalStore implements JournalStore
      * Initialize the interceptor
      */
     @Override
-    public void init( DirectoryService service ) throws Exception
+    public void init( DirectoryService service ) throws IOException
     {
         if ( workingDirectory == null )
         {
@@ -89,8 +91,7 @@ public class DefaultJournalStore implements JournalStore
 
         // The new requests are added at the end of the existing journal
         writer = new PrintWriter(
-            new OutputStreamWriter(
-                Files.newOutputStream( journal.toPath(), StandardOpenOption.APPEND ) ) );
+            Files.newBufferedWriter( journal.toPath(), StandardCharsets.UTF_8, StandardOpenOption.APPEND ) );
     }
 
 
@@ -127,11 +128,7 @@ public class DefaultJournalStore implements JournalStore
                 writer.write( LdifUtils.convertToLdif( forward, 80 ) );
                 writer.flush();
             }
-            catch ( LdapException ne )
-            {
-                return false;
-            }
-            catch ( IOException ioe )
+            catch ( LdapException | IOException e )
             {
                 return false;
             }
@@ -146,7 +143,6 @@ public class DefaultJournalStore implements JournalStore
      *
      * @param revision The change revision which is acked
      * @return <code>true</code> if the ack has been written
-     * @throws Exception if there are problems logging the ack
      */
     @Override
     public boolean ack( long revision )
@@ -177,7 +173,6 @@ public class DefaultJournalStore implements JournalStore
      *
      * @param revision The change revision which is nacked
      * @return <code>true</code> if the nack has been written
-     * @throws Exception if there are problems logging the nack
      */
     @Override
     public boolean nack( long revision )
@@ -204,7 +199,7 @@ public class DefaultJournalStore implements JournalStore
 
 
     @Override
-    public void sync() throws Exception
+    public void sync() throws IOException
     {
         // TODO Auto-generated method stub
 
